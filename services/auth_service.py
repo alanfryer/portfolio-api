@@ -143,7 +143,7 @@ class AuthService:
 
 
     def authenticate_user(self, username, password):
-        user = self.db_service.get_user(username, password)
+        user = self.db_service.get_user(username)
 
         if not user:
             raise self.create_auth_exception(

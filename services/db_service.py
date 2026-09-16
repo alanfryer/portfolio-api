@@ -186,7 +186,7 @@ class DatabaseService:
 
         return {"message": f"The Portfolio User '{username}' has been Deleted."}
 
-    def get_user(self, username: str, password: str) -> dict | bool:
+    def get_user(self, username: str) -> dict | bool:
         """Validates credentials against stored SQLite records."""
         with self._get_connection() as conn:
             conn.row_factory = sqlite3.Row  # Returns results as dictionary-like objects
