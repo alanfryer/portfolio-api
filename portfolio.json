@@ -1,0 +1,250 @@
+[
+  {
+    "symbol": "AZN.L",
+    "company": "AstraZeneca plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 62,
+    "cost": 7378.22
+  },
+  {
+    "symbol": "BA.L",
+    "company": "BAE Systems plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 148,
+    "cost": 2952.29
+  },
+  {
+    "symbol": "BARC.L",
+    "company": "Barclays plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 1533,
+    "cost": 7745.54
+  },
+  {
+    "symbol": "BP.L",
+    "company": "BP plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 94,
+    "cost": 470.16
+  },     
+  {
+    "symbol": "BATS.L",
+    "company": "British American Tobacco plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 95,
+    "cost": 4418.95
+  }, 
+  {
+    "symbol": "BT-A.L",
+    "company": "BT Group plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 756,
+    "cost": 1539.21
+  },  
+  {
+    "symbol": "CCH.L",
+    "company": "Coca-Cola HBC plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 22,
+    "cost": 1088.20
+  },
+  {
+    "symbol": "CPG.L",
+    "company": "Compass Group plc",
+    "exchange": "LSE",
+    "currency": "USD",
+    "owned": 212,
+    "cost": 4868.96
+  },
+  {
+    "symbol": "DPLM.L",
+    "company": "Diploma plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 15,
+    "cost": 1074.56
+  }, 
+  {
+    "symbol": "GSK.L",
+    "company": "Glaxosmithkline plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 179,
+    "cost": 3465.16
+  },
+  {
+    "symbol": "GLEN.L",
+    "company": "Glencore plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 1478,
+    "cost": 8158.84
+  },    
+  {
+    "symbol": "HLMA.L",
+    "company": "Halma plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 34,
+    "cost": 1252.76
+  },
+  {
+    "symbol": "HSBA.L",
+    "company": "HSBC Holdings plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 1597,
+    "cost": 24371.59
+  },
+  {
+    "symbol": "IGG.L",
+    "company": "IG Group Holdings plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 158,
+    "cost": 2465.43
+  },    
+  {
+    "symbol": "IHG",
+    "company": "Intercontinental Hotels Group (IHG)",
+    "exchange": "NYSE",
+    "currency": "USD",
+    "owned": 1,
+    "cost": 179.71
+  },    
+  {
+    "symbol": "LLOY.L",
+    "company": "Lloyds Banking Group plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 5584,
+    "cost": 6266.31
+  },
+  {
+    "symbol": "LSEG.L",
+    "company": "London Stock Exchange Group plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 66,
+    "cost": 5672.97
+  },
+  {
+    "symbol": "NG.L",
+    "company": "National Grid plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 245,
+    "cost": 3031.46
+  },   
+  {
+    "symbol": "NWG.L",
+    "company": "Natwest Group plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 773,
+    "cost": 5341.72
+  },
+  {
+    "symbol": "NXT.L",
+    "company": "Next plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 12,
+    "cost": 1877.74
+  },
+  {
+    "symbol": "PRU.L",
+    "company": "Prudential plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 185,
+    "cost": 2032.55
+  },
+  {
+    "symbol": "REL.L",
+    "company": "RELX plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 122,
+    "cost": 3096.57
+  },
+  {
+    "symbol": "RTO.L",
+    "company": "Rentokil Initial plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 874,
+    "cost": 3014.23
+  },
+  {
+    "symbol": "RIO.L",
+    "company": "Rio Tinto plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 122,
+    "cost": 8661.17
+  },
+  {
+    "symbol": "RR.L",
+    "company": "Rolls-Royce Holdings plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 55,
+    "cost": 791.96
+  },
+  {
+    "symbol": "SMT.L",
+    "company": "Scottish Mortgage Investment Trust plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 39,
+    "cost": 527.17
+  },            
+  {
+    "symbol": "SHEL.L",
+    "company": "Shell plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 35,
+    "cost": 1054.36
+  },
+  {
+    "symbol": "SSE.L",
+    "company": "SSE plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 74,
+    "cost": 1812.88
+  },
+  {
+    "symbol": "SDLF.L",
+    "company": "Standard Life plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 112,
+    "cost": 1009.00
+  },      
+  {
+    "symbol": "TSCO.L",
+    "company": "Tesco plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 506,
+    "cost": 2408.24
+  },
+  {
+    "symbol": "ULVR.L",
+    "company": "Unilever plc",
+    "exchange": "LSE",
+    "currency": "GBP",
+    "owned": 101,
+    "cost": 4652.55
+  }
+]
