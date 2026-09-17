@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
-from services.auth_service import AuthService, ACCESS_TOKEN_EXPIRE_MINUTES
+from services.authorization_service import AuthorizationService, ACCESS_TOKEN_EXPIRE_MINUTES
 from services.database_service import DatabaseService
 from schemas import UserUpdateInput
 import datetime
@@ -14,8 +14,8 @@ def get_db_service() -> DatabaseService:
     return DatabaseService()
 
 
-def get_auth_service() -> AuthService:
-    return AuthService()
+def get_auth_service() -> AuthorizationService:
+    return AuthorizationService()
 
 
 class UserRegisterSchema(BaseModel):
@@ -50,7 +50,7 @@ def update_portfolio_user_password(
 @router.post("/token")
 async def get_jwt_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
-    auth: AuthService = Depends(get_auth_service),
+    auth: AuthorizationService = Depends(get_auth_service),
 ):
     """
     Validates the User credentials and returns a JWT Token valid for 30 minutes.

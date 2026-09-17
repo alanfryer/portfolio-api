@@ -18,7 +18,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 logger = logging.getLogger("portfolio_app")
 
 
-class AuthService:
+class AuthorizationService:
     def __init__(self):
         self.database_service = DatabaseService()
         logger.info("Initialized the Authorization Service")

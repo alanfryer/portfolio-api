@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Depends
 from fastapi.responses import JSONResponse
 from fastapi import FastAPI
-from services.auth_service import AuthService
+from services.authorization_service import AuthorizationService
 from routers import exchange_rates, portfolio, auth
 from exceptions import StockNotFoundException, StockInfoNotFoundException, PortfolioException
 from services.database_service import DatabaseService
@@ -15,12 +15,12 @@ app = FastAPI(title="Portfolio Checker API")
 def get_db_service() -> DatabaseService:
     return DatabaseService()
 
-# 2. Yield or get your AuthService instance with the injected DB
-def get_auth_service(db_service: DatabaseService = Depends(get_db_service)) -> AuthService:
-    return AuthService()
+# 2. Yield or get your AuthorizationService instance with the injected DB
+def get_auth_service(db_service: DatabaseService = Depends(get_db_service)) -> AuthorizationService:
+    return AuthorizationService()
 
 # 3. Wrapper dependency that resolves the 'self' parameter for your class method
-async def auth_dependency(request: Request, auth_service: AuthService = Depends(get_auth_service)) -> dict:
+async def auth_dependency(request: Request, auth_service: AuthorizationService = Depends(get_auth_service)) -> dict:
     """
     Acts as the entry gate for router global protection.
     Resolves request and auth_service dynamically to execute the method cleanly.
