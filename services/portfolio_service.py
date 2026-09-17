@@ -26,7 +26,7 @@ class PortfolioService:
         if data.empty:
             raise StockNotFoundException(symbol=ticker_symbol)
 
-        info = self.database_service.get_stock_by_symbol(ticker_symbol)
+        info = self.database_service.get_portfolio_stock(ticker_symbol)
         if not info:
             raise StockInfoNotFoundException(symbol=ticker_symbol)
 
@@ -80,7 +80,7 @@ class PortfolioService:
 
     def get_portfolio_valuation(self) -> StocksResponse:
         """Aggregates performance cross-checks across all active positions."""
-        stocks = self.database_service.get_all_stocks()
+        stocks = self.database_service.get_portfolio()
         compiled_data = []
         portfolio_position = 0.00
         portfolio_daily_position = 0.00
