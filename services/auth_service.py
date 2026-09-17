@@ -21,7 +21,7 @@ logger = logging.getLogger("portfolio_app")
 class AuthService:
     def __init__(self):
         self.database_service = DatabaseService()
-        logger.info("Initialised the Market Service")
+        logger.info("Initialized the Authorization Service")
 
     @staticmethod
     def get_password_hash(password: str) -> str:
@@ -69,7 +69,10 @@ class AuthService:
         auth_header = request.headers.get("Authorization")
 
         if not auth_header:
-            raise Exception("No Authorization Header")
+            raise self.create_auth_exception(
+                                    detail="No Authorization Header",
+                                    scheme="Basic, Bearer",
+                                )
 
         scheme, param = get_authorization_scheme_param(auth_header)
 
@@ -96,14 +99,16 @@ class AuthService:
 
             except Exception as e:
                 raise self.create_auth_exception(
-                    detail=f"Invalid Base64 encoding structure {e}", scheme="Basic"
+                    detail=f"Invalid Base64 encoding structure {e}",
+                    scheme="Basic"
                 )
 
             user = self.authenticate_user(username, password)
 
             if user is None:
                 raise self.create_auth_exception(
-                    detail="Failed authentication.", scheme="Basic"
+                    detail="Failed authentication.",
+                    scheme="Basic"
                 )
 
             return {
@@ -138,7 +143,8 @@ class AuthService:
                 )
             except jwt.PyJWTError as exp:
                 raise self.create_auth_exception(
-                    detail=f"Error parsing the JWT Token: {exp}", scheme="Bearer"
+                    detail=f"Error parsing the JWT Token: {exp}",
+                    scheme="Bearer"
                 )
 
 

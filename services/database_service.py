@@ -12,7 +12,7 @@ class DatabaseService:
     def __init__(self):
         self.db_path = "/home/alanfryer/sqlite/portfolio.db"
 
-        logger.info("Intialised the Database Service")
+        logger.info("Intialized the Database Service")
 
     def _get_connection(self):
         conn = sqlite3.connect(self.db_path)

@@ -1,6 +1,5 @@
 import datetime
 import logging
-import requests
 import yfinance as yf
 from exceptions import StockNotFoundException, StockInfoNotFoundException
 from schemas import StockResponse, StocksResponse
@@ -16,7 +15,7 @@ class PortfolioService:
         self.database_service = database_service
         self.exchange_rate_service = ExchangeRateService()
 
-        logger.info("Initialised the Market Service")
+        logger.info("Initialized the Portfolio Service")
 
     def get_latest_price(self, ticker_symbol: str) -> StockResponse:
         """Fetches live stock values and normalizes metrics into portfolio currency."""
