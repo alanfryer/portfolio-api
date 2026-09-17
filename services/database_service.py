@@ -27,7 +27,7 @@ class DatabaseService:
         return hashed_bytes.decode("utf-8")
 
     # --- PORTFOLIO OPERATIONS ---
-    def get_all_stocks(self) -> list[dict]:
+    def get_portfolio(self) -> list[dict]:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -38,7 +38,7 @@ class DatabaseService:
         except sqlite3.Error as e:
             raise self.create_db_exception(f"Database error: {e}")
 
-    def get_stock_by_symbol(self, symbol: str) -> dict | None:
+    def get_portfolio_stock(self, symbol: str) -> dict | None:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()

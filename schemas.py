@@ -22,19 +22,12 @@ class StocksResponse(BaseModel):
 
 
 class StockInput(BaseModel):
-    symbol: str = Field(
-        ..., example="AAPL", description="The stock ticker symbol (Primary Key)"
-    )
-    company: str = Field(..., example="Apple Inc.")
-    exchange: str = Field(..., example="NASDAQ")
-    currency: str = Field(..., example="USD")
-    owned: float = Field(..., gt=0, example=10.5, description="Number of shares owned")
-    cost: float = Field(
-        ...,
-        ge=0,
-        example=1200.50,
-        description="Total cost basis in base currency (GBP)",
-    )
+    symbol: str = Field(..., json_schema_extra={"example": "AAPL", "description": "The stock ticker symbol (Primary Key)"})
+    company: str = Field(..., json_schema_extra={"example": "Apple Inc."})
+    exchange: str = Field(..., json_schema_extra={"example": "NASDAQ"})
+    currency: str = Field(..., json_schema_extra={"example": "USD"})
+    owned: float = Field(..., gt=0, json_schema_extra={"example": 10.5, "description": "Number of shares owned"})
+    cost: float = Field(..., ge=0, json_schema_extra={"example": 1200.50, "description": "Total cost basis in base currency (GBP)"})
 
 
 class StockUpdateInput(BaseModel):

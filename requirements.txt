@@ -6,4 +6,5 @@ jwt
 PyJWT==2.14.0
 python-multipart
 pytest 
+pytest-mock
 httpx

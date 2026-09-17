@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from services.auth_service import AuthService
 from routers import exchange_rates, portfolio, auth
 from exceptions import StockNotFoundException, StockInfoNotFoundException, PortfolioException
-from services.db_service import DatabaseService
+from services.database_service import DatabaseService
 
 # Initialise FastAPI application with custom lifespan tracking
 app = FastAPI(title="Portfolio Checker API")

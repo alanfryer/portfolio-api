@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from schemas import StockInput, StockUpdateInput, StockResponse, StocksResponse
-from services.db_service import DatabaseService
-from services.market_service import MarketService
+from services.database_service import DatabaseService
+from services.portfolio_service import PortfolioService
 
 router = APIRouter(prefix="/v1/portfolio", tags=["Portfolio Management"])
 
@@ -11,38 +11,38 @@ def get_db_service() -> DatabaseService:
     return DatabaseService()
 
 
-def get_market_service(
+def get_portfolio_service(
     db_service: DatabaseService = Depends(get_db_service),
-) -> MarketService:
-    return MarketService(db_service)
+) -> PortfolioService:
+    return PortfolioService(db_service)
 
 
 # --- LIVE PERFORMANCE ROUTES ---
 @router.get("/valuation", response_model=StocksResponse)
-def get_live_portfolio_valuation(market: MarketService = Depends(get_market_service)):
+def get_live_portfolio_valuation(portfolio: PortfolioService = Depends(get_portfolio_service)):
     """Calculates active daily valuation for the Stocks in the Portfolio."""
-    return market.get_portfolio_valuation()
+    return portfolio.get_portfolio_valuation()
 
 
 @router.get("/valuation/{symbol}", response_model=StockResponse)
 def get_live_stock_valuation(
-    symbol: str, market: MarketService = Depends(get_market_service)
+    symbol: str, portfolio: PortfolioService = Depends(get_portfolio_service)
 ):
     """Fetches real-time price changes for a single Stock in the Portfolio."""
-    return market.get_latest_price(symbol)
+    return portfolio.get_latest_price(symbol)
 
 
 # --- ASSET CONFIGURATION (CRUD) ROUTES ---
 @router.get("/", response_model=list[StockInput])
 def get_portfolio_stocks(db: DatabaseService = Depends(get_db_service)):
     """Fetches all the Stocks in the Portfolio."""
-    return db.get_all_stocks()
+    return db.get_portfolio()
 
 
 @router.get("/{symbol}", response_model=StockInput)
 def get_portfolio_stock(symbol: str, db: DatabaseService = Depends(get_db_service)):
     """Fetches a Stock from the Portfolio."""
-    stock = db.get_stock_by_symbol(symbol)
+    stock = db.get_portfolio_stock(symbol)
     if not stock:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

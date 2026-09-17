@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
 from services.auth_service import AuthService, ACCESS_TOKEN_EXPIRE_MINUTES
-from services.db_service import DatabaseService
+from services.database_service import DatabaseService
 from schemas import UserUpdateInput
 import datetime
 

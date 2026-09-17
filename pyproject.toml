@@ -1,0 +1,12 @@
+[tool.pytest.ini_options]
+pythonpath = [
+  "."
+]
+
+filterwarnings = [
+    "ignore:Please use `import python_multipart` instead:PendingDeprecationWarning",
+    "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning"
+]
+testpaths = [
+  "tests"
+]

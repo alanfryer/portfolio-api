@@ -7,7 +7,7 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.security.utils import get_authorization_scheme_param
 from jwt.exceptions import ExpiredSignatureError
-from services.db_service import DatabaseService
+from services.database_service import DatabaseService
 
 # Configuration (Keep environment variables in production)
 SECRET_KEY = "your-super-secret-and-random-signing-key"
@@ -20,7 +20,7 @@ logger = logging.getLogger("portfolio_app")
 
 class AuthService:
     def __init__(self):
-        self.db_service = DatabaseService()
+        self.database_service = DatabaseService()
         logger.info("Initialised the Market Service")
 
     @staticmethod
@@ -143,7 +143,7 @@ class AuthService:
 
 
     def authenticate_user(self, username, password):
-        user = self.db_service.get_user(username)
+        user = self.database_service.get_user(username)
 
         if not user:
             raise self.create_auth_exception(
