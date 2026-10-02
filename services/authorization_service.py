@@ -3,6 +3,7 @@ import base64
 import bcrypt  # Use native bcrypt directly
 import jwt
 import logging
+import os
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.security.utils import get_authorization_scheme_param
@@ -10,9 +11,9 @@ from jwt.exceptions import ExpiredSignatureError
 from services.database_service import DatabaseService
 
 # Configuration (Keep environment variables in production)
-SECRET_KEY = "your-super-secret-and-random-signing-key"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30)
 
 # Setup standard structured logging instead of using print()
 logger = logging.getLogger("portfolio_app")
@@ -23,6 +24,7 @@ class AuthorizationService:
         self.database_service = DatabaseService()
         logger.info("Initialized the Authorization Service")
 
+        
     @staticmethod
     def get_password_hash(password: str) -> str:
         """Hashes a plain text password safely using native bcrypt."""

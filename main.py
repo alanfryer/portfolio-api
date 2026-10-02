@@ -15,7 +15,7 @@ app = FastAPI(title="Portfolio Checker API")
 def get_db_service() -> DatabaseService:
     return DatabaseService()
 
-# 2. Yield or get your AuthorizationService instance with the injected DB
+# 2. Yield or get your AuthService instance with the injected DB
 def get_auth_service(db_service: DatabaseService = Depends(get_db_service)) -> AuthorizationService:
     return AuthorizationService()
 
