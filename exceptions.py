@@ -1,11 +1,11 @@
 class StockNotFoundException(Exception):
-    def __init__(self, symbol: str):
+    def __init__(self, symbol: str,):
         self.symbol = symbol
-
 
 class StockInfoNotFoundException(Exception):
-    def __init__(self, symbol: str):
+    def __init__(self, symbol: str, username: str,):
         self.symbol = symbol
+        self.username = username
 
 
 class PortfolioException(Exception):

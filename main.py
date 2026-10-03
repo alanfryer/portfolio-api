@@ -40,7 +40,7 @@ logger.propagate = False
 async def stock_not_found_exception_handler(request: Request, exc: StockNotFoundException):
     """Fired when yfinance returns empty data for an invalid or unlisted ticker symbol."""
 
-    error_msg = f"The Stock prices for the symbol: {exc.symbol} could not be found."
+    error_msg = f"The Stock for the symbol: {exc.symbol} could not be found."
     logger.error(error_msg)
 
     return JSONResponse(
@@ -52,7 +52,7 @@ async def stock_not_found_exception_handler(request: Request, exc: StockNotFound
 async def stock_info_not_found_exception_handler(request: Request, exc: StockInfoNotFoundException):
     """Fired when a valid ticker is requested but missing from the local configuration layout."""
 
-    error_msg = f"The Stock Information for symbol: {exc.symbol} does not exist in the file 'portfolio.json'."
+    error_msg = f"The Stock Information for the symbol: {exc.symbol} does not exist in the Portfolio for user '{exc.username}'."
     logger.error(error_msg)
 
 
@@ -65,7 +65,7 @@ async def stock_info_not_found_exception_handler(request: Request, exc: StockInf
 async def portfolio_exception_handler(request: Request, exc: PortfolioException):
     """Generic fallback handler for structural exceptions mapping across data mutations."""
 
-    error_msg = f"{exc.message}."
+    error_msg = f"{exc.message}"
     logger.error(error_msg)
 
     return JSONResponse(

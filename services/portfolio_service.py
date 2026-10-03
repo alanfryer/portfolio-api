@@ -1,8 +1,7 @@
 import datetime
 import logging
 import yfinance as yf
-from fastapi.responses import JSONResponse
-from exceptions import StockNotFoundException, StockInfoNotFoundException
+from exceptions import StockNotFoundException, StockInfoNotFoundException, PortfolioException
 from schemas import StockResponse, StocksResponse
 from services.database_service import DatabaseService
 from services.exchange_rate_service import ExchangeRateService
@@ -18,7 +17,7 @@ class PortfolioService:
 
         logger.info("Initialized the Portfolio Service")
 
-    def get_latest_price(self, ticker_symbol: str) -> StockResponse:
+    def get_latest_price(self, ticker_symbol: str, username: str) -> StockResponse:
         """Fetches live stock values and normalizes metrics into portfolio currency."""
         ticker = yf.Ticker(ticker_symbol)
         data = ticker.history(period="1d")
@@ -26,9 +25,9 @@ class PortfolioService:
         if data.empty:
             raise StockNotFoundException(symbol=ticker_symbol)
 
-        info = self.database_service.get_portfolio_stock(ticker_symbol)
+        info = self.database_service.get_portfolio_stock(ticker_symbol, username)
         if not info:
-            raise StockInfoNotFoundException(symbol=ticker_symbol)
+            raise StockInfoNotFoundException(symbol=ticker_symbol, username=username)
 
         # Destructure database row metrics
         company, exchange, currency = (
@@ -84,10 +83,7 @@ class PortfolioService:
         
         # --- EMPTY PORTFOLIO EXCEPTION CHECK ---
         if not stocks:
-            return JSONResponse(
-                    status_code=404,
-                    content={"message": f"No Stocks found for the user '{username}'."},
-                )
+            raise PortfolioException(status=404, message= f"No Stocks found in the Portfolio for '{username}'.")
        
         compiled_data = []
         portfolio_position = 0.00
@@ -95,7 +91,7 @@ class PortfolioService:
 
         for item in stocks:
             try:
-                stock_res = self.get_latest_price(item["symbol"])
+                stock_res = self.get_latest_price(item["symbol"], username)
                 portfolio_position += stock_res.overall_change
                 portfolio_daily_position += stock_res.daily_change
                 compiled_data.append(stock_res)

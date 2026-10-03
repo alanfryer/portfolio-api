@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.responses import JSONResponse
 from schemas import StockInput, StockUpdateInput, StockResponse, StocksResponse
+from exceptions import StockNotFoundException, StockInfoNotFoundException, PortfolioException
 from services.authorization_service import get_current_user
 from services.database_service import DatabaseService
 from services.portfolio_service import PortfolioService
@@ -38,9 +39,8 @@ def get_live_stock_valuation(
     """Fetches real-time price changes for a single Stock in the Portfolio."""
 
     username = current_user["username"]
-    print(f"-----------------{username}")
 
-    return portfolio.get_latest_price(symbol)
+    return portfolio.get_latest_price(symbol, username)
 
 
 # --- ASSET CONFIGURATION (CRUD) ROUTES ---
@@ -56,10 +56,8 @@ def get_portfolio_stocks(
     
     # --- EMPTY PORTFOLIO EXCEPTION CHECK ---
     if not stocks:
-        return JSONResponse(
-                status_code=404,
-                content={"message": f"No Stocks found for the user '{username}'."},
-            )
+        raise PortfolioException(status=404, message= f"No Stocks found in the Portfolio for '{username}'.")
+    
     return stocks
 
 
@@ -76,10 +74,8 @@ def get_portfolio_stock(
 
     stock = db.get_portfolio_stock(symbol, username)
     if not stock:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Stock not found in '{username}'s' Portfolio for '{symbol}'.",
-        )
+        raise StockInfoNotFoundException(symbol=symbol, username=username)
+
     return stock
 
 
