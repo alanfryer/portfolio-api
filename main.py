@@ -1,6 +1,6 @@
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, Depends
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi import FastAPI
 from services.authorization_service import AuthorizationService
@@ -10,22 +10,6 @@ from services.database_service import DatabaseService
 
 # Initialise FastAPI application with custom lifespan tracking
 app = FastAPI(title="Portfolio Checker API")
-
-# 1. Yield or get your Database Instance
-def get_db_service() -> DatabaseService:
-    return DatabaseService()
-
-# 2. Yield or get your AuthService instance with the injected DB
-def get_auth_service(db_service: DatabaseService = Depends(get_db_service)) -> AuthorizationService:
-    return AuthorizationService()
-
-# 3. Wrapper dependency that resolves the 'self' parameter for your class method
-async def auth_dependency(request: Request, auth_service: AuthorizationService = Depends(get_auth_service)) -> dict:
-    """
-    Acts as the entry gate for router global protection.
-    Resolves request and auth_service dynamically to execute the method cleanly.
-    """
-    return await auth_service.get_current_user(request)
 
 # ==========================================
 # CENTRALIZED LOGGING STRUCTURE
@@ -97,8 +81,8 @@ async def portfolio_exception_handler(request: Request, exc: PortfolioException)
 app.include_router(auth.router)
 
 # 2. Include Data Routers (Fully PROTECTED using our resolved authentication helper)
-app.include_router(exchange_rates.router, dependencies=[Depends(auth_dependency)])
-app.include_router(portfolio.router, dependencies=[Depends(auth_dependency)])
+app.include_router(exchange_rates.router) #, dependencies=[Depends(auth_dependency)])
+app.include_router(portfolio.router)
 
 # ==========================================
 # ROOT ENDPOINTS

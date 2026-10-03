@@ -1,6 +1,7 @@
 import datetime
 import logging
 import yfinance as yf
+from fastapi.responses import JSONResponse
 from exceptions import StockNotFoundException, StockInfoNotFoundException
 from schemas import StockResponse, StocksResponse
 from services.database_service import DatabaseService
@@ -77,9 +78,17 @@ class PortfolioService:
             overall_change=round(overall_change, 2),
         )
 
-    def get_portfolio_valuation(self) -> StocksResponse:
+    def get_portfolio_valuation(self, username: str) -> StocksResponse:
         """Aggregates performance cross-checks across all active positions."""
-        stocks = self.database_service.get_portfolio()
+        stocks = self.database_service.get_portfolio(username)
+        
+        # --- EMPTY PORTFOLIO EXCEPTION CHECK ---
+        if not stocks:
+            return JSONResponse(
+                    status_code=404,
+                    content={"message": f"No Stocks found for the user '{username}'."},
+                )
+       
         compiled_data = []
         portfolio_position = 0.00
         portfolio_daily_position = 0.00

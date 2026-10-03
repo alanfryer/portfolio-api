@@ -176,3 +176,9 @@ class AuthorizationService:
             detail=detail,
             headers={"WWW-Authenticate": scheme},
         )
+
+# =====================================================================
+# EXPOSE INSTANCE & DEPENDENCY HOOK
+# =====================================================================
+auth_service = AuthorizationService()
+get_current_user = auth_service.get_current_user

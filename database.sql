@@ -20,13 +20,14 @@ CREATE TABLE IF NOT EXISTS "roles" (
 CREATE INDEX IF NOT EXISTS "ix_roles_id" ON "roles" ("id");
 
 -- Table Structure
-CREATE TABLE IF NOT EXISTS stocks (
+CREATE TABLE IF NOT EXISTS portfolio (
     symbol TEXT PRIMARY KEY,
     company TEXT NOT NULL,
     exchange TEXT NOT NULL,
     currency TEXT NOT NULL,
     owned INTEGER NOT NULL,
-    cost REAL NOT NULL
+    cost REAL NOT NULL,
+    username TEXT NOT NULL
 );
 
 -- Insert Statements
@@ -63,3 +64,37 @@ INSERT INTO portfolio(symbol, company, exchange, currency, owned, cost) VALUES
 ('TSCO.L', 'Tesco plc', 'LSE', 'GBP', 506, 2408.24),
 ('ULVR.L', 'Unilever plc', 'LSE', 'GBP', 101, 4652.55);
 
+
+
+INSERT INTO portfolio (symbol, company, exchange, currency, owned, cost, username)
+SELECT symbol, company, exchange, currency, owned, cost, "alanfryer"
+FROM portfolio_bkp;
+
+BEGIN TRANSACTION;
+
+-- 2. Construct the new structural layout with your composite primary key
+CREATE TABLE portfolio_new (
+    symbol TEXT NOT NULL,
+    company TEXT,
+    exchange TEXT,
+    currency TEXT,
+    owned REAL,
+    cost REAL,
+    username TEXT NOT NULL,
+    PRIMARY KEY (symbol, username)
+);
+
+-- 3. Hydrate the new table using your existing rows
+-- (INSERT OR IGNORE strips out any duplicate positions if they exist)
+INSERT OR IGNORE INTO portfolio_new (symbol, company, exchange, currency, owned, cost, username)
+SELECT symbol, company, exchange, currency, owned, cost, username
+FROM portfolio;
+
+-- 4. Delete the legacy data structure
+DROP TABLE portfolio;
+
+-- 5. Restore the original name to the new configuration
+ALTER TABLE portfolio_new RENAME TO portfolio;
+
+-- 6. Lock in and finalize the updates
+COMMIT;

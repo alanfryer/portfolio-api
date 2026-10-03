@@ -27,24 +27,25 @@ class DatabaseService:
         return hashed_bytes.decode("utf-8")
 
     # --- PORTFOLIO OPERATIONS ---
-    def get_portfolio(self) -> list[dict]:
+    def get_portfolio(self, username: str) -> list[dict]:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "SELECT symbol, company, exchange, currency, owned, cost FROM portfolio;"
+                    "SELECT symbol, company, exchange, currency, owned, cost FROM portfolio WHERE username = ?;",
+                    (username,),
                 )
                 return [dict(row) for row in cursor.fetchall()]
         except sqlite3.Error as e:
             raise self.create_db_exception(f"Database error: {e}")
 
-    def get_portfolio_stock(self, symbol: str) -> dict | None:
+    def get_portfolio_stock(self, symbol: str, username: str) -> dict | None:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "SELECT symbol, company, exchange, currency, owned, cost FROM portfolio WHERE symbol = ?;",
-                    (symbol.upper(),),
+                    "SELECT symbol, company, exchange, currency, owned, cost FROM portfolio WHERE symbol = ? AND username = ?;",
+                    (symbol.upper(), username,),
                 )
                 row = cursor.fetchone()
                 return dict(row) if row else None
