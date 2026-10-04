@@ -70,7 +70,6 @@ def get_portfolio_stock(
     """Fetches a Stock from the Portfolio."""
 
     username = current_user["username"]
-    print(f"-----------------{username}")
 
     stock = db.get_portfolio_stock(symbol, username)
     if not stock:

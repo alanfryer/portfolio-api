@@ -32,7 +32,7 @@ class DatabaseService:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "SELECT symbol, company, exchange, currency, owned, cost FROM portfolio WHERE username = ?;",
+                    "SELECT symbol, company, exchange, currency, owned, cost, username FROM portfolio WHERE username = ?;",
                     (username,),
                 )
                 return [dict(row) for row in cursor.fetchall()]
@@ -57,23 +57,24 @@ class DatabaseService:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "SELECT symbol FROM portfolio WHERE symbol = ?;",
-                    (stock.symbol.upper(),),
+                    "SELECT symbol FROM portfolio WHERE symbol = ? AND username = ?;",
+                    (stock.symbol.upper(), stock.username,),
                 )
 
                 if cursor.fetchone():
                     raise self.create_db_exception(
-                        f"Stock symbol '{stock.symbol.upper()}' already exists.",
+                        f"Stock symbol '{stock.symbol.upper()}' for '{stock.username}' already exists.",
                         status.HTTP_400_BAD_REQUEST,
                     )
 
                 cursor.execute(
                     """
-                    INSERT INTO portfolio (symbol, company, exchange, currency, owned, cost)
-                    VALUES (?, ?, ?, ?, ?, ?);
+                    INSERT INTO portfolio (symbol, username, company, exchange, currency, owned, cost)
+                    VALUES (?, ?, ?, ?, ?, ?, ?);
                 """,
                     (
                         stock.symbol.upper(),
+                        stock.username,
                         stock.company,
                         stock.exchange,
                         stock.currency.upper(),
@@ -124,11 +125,11 @@ class DatabaseService:
 
         return {"message": "The Stock for '{symbol}' has been updated."}
 
-    def delete_stock(self, symbol: str) -> None:
+    def delete_stock(self, symbol: str, username: str) -> None:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("DELETE FROM users WHERE symbol = ?;", (symbol.upper(),))
+                cursor.execute("DELETE FROM portfolio WHERE symbol = ? and username = ?;", (symbol.upper(), username,))
 
                 if cursor.rowcount == 0:
                     raise self.create_db_exception(
@@ -140,7 +141,7 @@ class DatabaseService:
         except sqlite3.Error as e:
             raise self.create_db_exception(f"Database error: {e}")
 
-        return {"message": "The Stock for '{symbol}' has been added to the Portfolio."}
+        return {"message": "The Stock for '{symbol}' has been deleted from the Portfolio for {username}."}
 
     def register_user(self, username: str, password: str) -> dict:
         """Validates availability and registers a new user securely into SQLite."""

@@ -23,6 +23,7 @@ class StocksResponse(BaseModel):
 
 class StockInput(BaseModel):
     symbol: str = Field(..., json_schema_extra={"example": "AAPL", "description": "The stock ticker symbol (Primary Key)"})
+    username: str = Field(..., json_schema_extra={"example": "alanfryer", "description": "The username (Primary Key)"})
     company: str = Field(..., json_schema_extra={"example": "Apple Inc."})
     exchange: str = Field(..., json_schema_extra={"example": "NASDAQ"})
     currency: str = Field(..., json_schema_extra={"example": "USD"})
