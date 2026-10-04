@@ -2,7 +2,7 @@ import bcrypt  # Use native bcrypt directly
 import logging
 import sqlite3
 from fastapi import HTTPException, status
-from schemas import StockInput, StockUpdateInput, UserUpdateInput
+from schemas import Stock, StockUpdateInput, UserUpdateInput
 
 # Setup standard structured logging instead of using print()
 logger = logging.getLogger("portfolio_app")
@@ -52,7 +52,7 @@ class DatabaseService:
         except sqlite3.Error as e:
             raise self.create_db_exception(f"Database error: {e}")
 
-    def add_stock(self, stock: StockInput) -> None:
+    def add_stock(self, stock: Stock) -> None:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -89,11 +89,13 @@ class DatabaseService:
             raise self.create_db_exception(f"Database error: {e}")
 
         return {
-            "message": "The Stock for '{stock.company}' has been added to the Portfolio."
+            "message": f"The Stock for '{stock.company}' has been added to the Portfolio."
         }
 
-    def update_stock(self, symbol: str, update_data: StockUpdateInput) -> None:
+    def update_stock(self, symbol: str, username: str, update_data: StockUpdateInput) -> None:
         fields = {k: v for k, v in update_data.model_dump().items() if v is not None}
+        
+        
         if not fields:
             raise self.create_db_exception(
                 "No fields provided for update.", status.HTTP_400_BAD_REQUEST
@@ -106,15 +108,15 @@ class DatabaseService:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 set_clause = ", ".join([f"{key} = ?" for key in fields.keys()])
-                values = list(fields.values()) + [symbol.upper()]
-
+                values = list(fields.values()) + [symbol.upper()] + [username]
+                
                 cursor.execute(
-                    f"UPDATE portfolio SET {set_clause} WHERE symbol = ?;", values
+                    f"UPDATE portfolio SET {set_clause} WHERE symbol = ? AND username = ?;", values,
                 )
 
                 if cursor.rowcount == 0:
                     raise self.create_db_exception(
-                        f"Stock details not found for '{symbol}'.",
+                        f"Stock details not found for '{symbol}' in the Portfolio for {username}.",
                         status.HTTP_404_NOT_FOUND,
                     )
 
@@ -123,7 +125,7 @@ class DatabaseService:
         except sqlite3.Error as e:
             raise self.create_db_exception(f"Database error: {e}")
 
-        return {"message": "The Stock for '{symbol}' has been updated."}
+        return {"message": f"The Stock for '{symbol}' has been updated in the Portfolio for {username}."}
 
     def delete_stock(self, symbol: str, username: str) -> None:
         try:
@@ -133,7 +135,7 @@ class DatabaseService:
 
                 if cursor.rowcount == 0:
                     raise self.create_db_exception(
-                        f"Stock details not found for '{symbol}'.",
+                        f"Stock details not found for '{symbol}' in the Portfolio for {username}.",
                         status.HTTP_404_NOT_FOUND,
                     )
 
@@ -141,7 +143,7 @@ class DatabaseService:
         except sqlite3.Error as e:
             raise self.create_db_exception(f"Database error: {e}")
 
-        return {"message": "The Stock for '{symbol}' has been deleted from the Portfolio for {username}."}
+        return {"message": f"The Stock for '{symbol}' has been deleted from the Portfolio for {username}."}
 
     def register_user(self, username: str, password: str) -> dict:
         """Validates availability and registers a new user securely into SQLite."""

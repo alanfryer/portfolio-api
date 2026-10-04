@@ -21,7 +21,7 @@ class StocksResponse(BaseModel):
     stocks: list[StockResponse]
 
 
-class StockInput(BaseModel):
+class Stock(BaseModel):
     symbol: str = Field(..., json_schema_extra={"example": "AAPL", "description": "The stock ticker symbol (Primary Key)"})
     username: str = Field(..., json_schema_extra={"example": "alanfryer", "description": "The username (Primary Key)"})
     company: str = Field(..., json_schema_extra={"example": "Apple Inc."})
