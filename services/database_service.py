@@ -44,7 +44,7 @@ class DatabaseService:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "SELECT symbol, company, exchange, currency, owned, cost FROM portfolio WHERE symbol = ? AND username = ?;",
+                    "SELECT symbol, username, company, exchange, currency, owned, cost FROM portfolio WHERE symbol = ? AND username = ?;",
                     (symbol.upper(), username,),
                 )
                 row = cursor.fetchone()

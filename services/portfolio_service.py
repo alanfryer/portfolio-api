@@ -83,7 +83,7 @@ class PortfolioService:
         
         # --- EMPTY PORTFOLIO EXCEPTION CHECK ---
         if not stocks:
-            raise PortfolioException(status=404, message= f"No Stocks found in the Portfolio for '{username}'.")
+            return None
        
         compiled_data = []
         portfolio_position = 0.00
