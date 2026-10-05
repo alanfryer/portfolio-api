@@ -27,7 +27,7 @@ class DatabaseService:
         return hashed_bytes.decode("utf-8")
 
     # --- PORTFOLIO OPERATIONS ---
-    def get_portfolio(self, username: str) -> list[dict]:
+    def get_portfolio(self, username: str) -> list[Stock]:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -39,7 +39,7 @@ class DatabaseService:
         except sqlite3.Error as e:
             raise self.create_db_exception(f"Database error: {e}")
 
-    def get_portfolio_stock(self, symbol: str, username: str) -> dict | None:
+    def get_portfolio_stock(self, symbol: str, username: str) -> Stock | None:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -87,10 +87,8 @@ class DatabaseService:
 
         except sqlite3.Error as e:
             raise self.create_db_exception(f"Database error: {e}")
-
-        return {
-            "message": f"The Stock for '{stock.company}' has been added to the Portfolio."
-        }
+        
+        return stock
 
     def update_stock(self, symbol: str, username: str, update_data: StockUpdateInput) -> None:
         fields = {k: v for k, v in update_data.model_dump().items() if v is not None}
@@ -126,6 +124,7 @@ class DatabaseService:
             raise self.create_db_exception(f"Database error: {e}")
 
         return {"message": f"The Stock for '{symbol}' has been updated in the Portfolio for {username}."}
+        
 
     def delete_stock(self, symbol: str, username: str) -> None:
         try:
