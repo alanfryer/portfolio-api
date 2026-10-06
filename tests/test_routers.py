@@ -3,7 +3,7 @@
 def test_get_portfolio_summary(client, mocker, mock_portfolio_data):
     """Test the GET endpoint fetching the portfolio overview."""
     # Mock the service layer so it returns our test data instead of hitting disk/DB
-    mocker.patch("routers.portfolio.get_portfolio_stocks", return_value=mock_portfolio_data)
+    mocker.patch("routers.portfolio.get_stocks", return_value=mock_portfolio_data)
     
     response = client.get("/portfolio")
     

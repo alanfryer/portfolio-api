@@ -42,7 +42,7 @@ def get_live_portfolio_valuation(
             # Fixed Status Code: Use 404 instead of 200 for missing target resources
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, 
-                detail=f"No Stocks found in the Portfolio valuation for user '{username}'."
+                detail=f"No Stocks found in the Portfolio for user '{username}'."
             )
         return valuation_data
     
@@ -51,7 +51,7 @@ def get_live_portfolio_valuation(
 
 
 @router.get("/{symbol}", response_model=StockResponse | Stock)
-def get_portfolio_stock(
+def get_stock(
     symbol: str,
     view: str | None = None,
     db: DatabaseService = Depends(get_db_service),
@@ -60,29 +60,31 @@ def get_portfolio_stock(
 ):
     username = current_user["username"]
     symbol_upper = symbol.upper().strip()
-
+    suffix_msg = f"the Stock '{symbol_upper}' in the Portfolio owned by {username}"
+    
     if view == "valuation":
         try:
             live_price = portfolio.get_latest_price(symbol_upper, username)
         except HTTPException as e:
-            logger.error(f"Live price lookup failed for {symbol_upper} owned by {username}: {e.detail}")
+            error_msg = f"Live price lookup failed for {suffix_msg}."
+            logger.error(error_msg)
             raise HTTPException(
                 status_code=e.status_code, 
-                detail= f"Live price lookup failed for {symbol_upper} owned by {username}: {e.detail}"
+                detail=error_msg
             )
 
         if not live_price:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Real-time pricing unavailable for asset {symbol_upper}."
+                detail=f"Real-time pricing unavailable for {suffix_msg}."
             )
         return live_price
     
-    stock = db.get_portfolio_stock(symbol_upper, username)
+    stock = db.get_stock(symbol_upper, username)
     if not stock:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Asset {symbol_upper} not found in portfolio for user {username}."
+            detail=f"{suffix_msg} not found."
         )
 
     return stock
@@ -98,7 +100,7 @@ def add_stock_to_portfolio(
     stock.symbol = stock.symbol.upper().strip()
     stock.username = username # Security Force: Overwrite payload variance to protect current user bounds
     
-    existing_stock = db.get_portfolio_stock(stock.symbol, username)
+    existing_stock = db.get_stock(stock.symbol, username)
     if existing_stock:
         # Fixed Status Code: 409 Conflict accurately represents resource duplication collisions
         raise HTTPException(
@@ -120,11 +122,11 @@ def update_portfolio_stock(
     username = current_user["username"]
     symbol_upper = symbol.upper().strip()
 
-    stock = db.get_portfolio_stock(symbol_upper, username)
+    stock = db.get_stock(symbol_upper, username)
     if not stock:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Asset {symbol_upper} matching user context not found."
+            detail=f"The Stock '{symbol_upper}' does not exist in the Portfolio for {username}."
         )
 
     db.update_stock(symbol_upper, username, update_data)
@@ -140,11 +142,11 @@ def delete_portfolio_stock(
     username = current_user["username"]
     symbol_upper = symbol.upper().strip()
 
-    stock = db.get_portfolio_stock(symbol_upper, username)
+    stock = db.get_stock(symbol_upper, username)
     if not stock:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Asset {symbol_upper} matching user context not found."
+            detail=f"The Stock '{symbol_upper}' does not exist in the Portfolio for {username}."
         )
 
     db.delete_stock(symbol_upper, username)

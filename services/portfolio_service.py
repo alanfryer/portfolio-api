@@ -20,7 +20,7 @@ class PortfolioService:
         symbol_clean = ticker_symbol.upper().strip()
         
         # 1. Fetch metadata configuration from internal DB first
-        info = self.database_service.get_portfolio_stock(symbol_clean, username)
+        info = self.database_service.get_stock(symbol_clean, username)
         if not info:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

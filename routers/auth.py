@@ -24,27 +24,47 @@ class UserRegisterSchema(BaseModel):
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
-async def add_portfolio_user(
+async def add_user(
     user_data: UserRegisterSchema, db: DatabaseService = Depends(get_db_service)
 ):
     """Register a new User for accessing the Portfolio."""
-    return db.register_user(user_data.username, user_data.password)
-
+    
+    db.register_user(user_data.username, user_data.password)
+    return {"message": f"User {user_data.username} successfully added."}
 
 @router.delete("/{username}")
-def delete_portfolio_user(username: str, db: DatabaseService = Depends(get_db_service)):
+def delete_user(username: str, db: DatabaseService = Depends(get_db_service)):
     """Delete a User from the Portfolio."""
-    return db.delete_user(username)
+    
+    user = db.get_user(username)
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"The user '{username}' does not exist."
+        )
 
+    db.delete_user(username)
+    return {"message": f"User {username} successfully deleted."}
 
 @router.put("/{username}")
-def update_portfolio_user_password(
+def update_user_password(
     username: str,
     update_data: UserUpdateInput,
     db: DatabaseService = Depends(get_db_service),
 ):
     """Update the Password for the Portfolio User."""
-    return db.update_user_password(username, update_data)
+
+    user = db.get_user(username)
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"The user '{username}' does not exist."
+        )
+    
+    db.update_user_password(username, update_data)
+    return {"message": f"User {username} successfully updated."}
 
 
 @router.post("/token")

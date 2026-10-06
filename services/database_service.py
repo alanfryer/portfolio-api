@@ -25,10 +25,11 @@ class DatabaseService:
 
     def _handle_db_error(self, contextual_msg: str, exception: Exception):
         """Centralized logging helper to abstract relational errors away from client payloads."""
-        logger.error(f"{contextual_msg} | SQL Trace: {str(exception)}")
+        error_msg =f"{contextual_msg} | SQL Trace: {str(exception)}"
+        logger.error(error_msg)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An internal storage operation failed to process."
+            status_code=status.HTTP_409_CONFLICT,
+            detail=error_msg
         )
 
     def _get_password_hash(self, password: str) -> str:
@@ -56,7 +57,7 @@ class DatabaseService:
         except sqlite3.Error as e:
             self._handle_db_error(f"Failed fetching portfolio for {username}", e)
 
-    def get_portfolio_stock(self, symbol: str, username: str) -> dict | None:
+    def get_stock(self, symbol: str, username: str) -> dict | None:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -67,7 +68,7 @@ class DatabaseService:
                 row = cursor.fetchone()
                 return dict(row) if row else None
         except sqlite3.Error as e:
-            self._handle_db_error(f"Failed fetching single stock context {symbol} for {username}", e)
+            self._handle_db_error(f"Failed fetching single stock information for {symbol} in the Portfolio for {username}", e)
 
     def add_stock(self, stock: Stock) -> None:
         """Inserts stock configurations directly. Relies on higher-level verification for duplicates."""
@@ -91,16 +92,15 @@ class DatabaseService:
                 )
                 conn.commit()
         except sqlite3.Error as e:
-            self._handle_db_error(f"Database insertion crash for stock={stock.symbol}, user={stock.username}", e)
+            self._handle_db_error(f"Database insertion problem for the stock {stock.symbol}, in the Portfolio for {stock.username}", e)
 
     def update_stock(self, symbol: str, username: str, update_data: StockUpdateInput) -> None:
         fields = {k: v for k, v in update_data.model_dump().items() if v is not None}
         
         
         if not fields:
-            raise self.create_db_exception(
-                "No fields provided for update.", status.HTTP_400_BAD_REQUEST
-            )
+            raise self._handle_db_error("No fields provided for update", e)
+
 
         if "currency" in fields:
             fields["currency"] = fields["currency"].upper()
@@ -115,16 +115,10 @@ class DatabaseService:
                     f"UPDATE portfolio SET {set_clause} WHERE symbol = ? AND username = ?;", values,
                 )
 
-                if cursor.rowcount == 0:
-                    raise self.create_db_exception(
-                        f"Stock details not found for '{symbol}' in the Portfolio for {username}.",
-                        status.HTTP_404_NOT_FOUND,
-                    )
-
                 conn.commit()
 
         except sqlite3.Error as e:
-             self._handle_db_error(f"Database modification crash for stock={symbol}, user={username}", e)
+            self._handle_db_error(f"Database update problem for stock={symbol}, user={username}", e)
 
 
     def delete_stock(self, symbol: str, username: str) -> None:
@@ -164,14 +158,8 @@ class DatabaseService:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("DELETE FROM users WHERE username = ?;", (username,))
-                if cursor.rowcount == 0:
-                    raise self.create_db_exception(
-                        f"Could not delete User '{username}': Not Found.",
-                        status.HTTP_404_NOT_FOUND,
-                    )
-
                 conn.commit()
-                conn.commit()
+                
         except sqlite3.Error as e:
             raise self._handle_db_error(f"Failed to delete the User '{username}'.", e)
 
