@@ -2,7 +2,7 @@ import sqlite3
 import logging
 import bcrypt
 from fastapi import HTTPException, status
-from schemas import Stock, StockUpdateInput, UserUpdateInput
+from schemas import Stock, StockBase, StockUpdateInput, UserUpdateInput
 
 logger = logging.getLogger("portfolio_app")
 
@@ -45,56 +45,60 @@ class DatabaseService:
             )
 
     # --- PORTFOLIO OPERATIONS ---
-    def get_portfolio(self, username: str) -> list[dict]:
+    def get_portfolio(self, portfolio_id: str) -> list[StockBase]:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "SELECT symbol, company, exchange, currency, owned, cost, username FROM portfolio WHERE username = ?;",
-                    (username,),
+                    "SELECT username, symbol, company, exchange, currency, owned, cost, portfolio_id FROM stocks WHERE portfolio_id = ?;",
+                    (portfolio_id,),
                 )
-                return [dict(row) for row in cursor.fetchall()]
+                rows = cursor.fetchall()
+                return [dict(row) for row in rows]
+                
         except sqlite3.Error as e:
-            self._handle_db_error(f"Failed fetching portfolio for {username}", e)
+            self._handle_db_error(f"Failed fetching portfolio for {portfolio_id}", e)
 
-    def get_stock(self, symbol: str, username: str) -> dict | None:
+    def get_stock(self, symbol: str, portfolio_id: str) -> dict | None:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "SELECT symbol, username, company, exchange, currency, owned, cost FROM portfolio WHERE symbol = ? AND username = ?;",
-                    (symbol.upper().strip(), username,),
+                    "SELECT symbol, company, exchange, currency, owned, cost FROM stocks WHERE symbol = ? AND portfolio_id = ?;",
+                    (symbol.upper().strip(), portfolio_id,),
                 )
                 row = cursor.fetchone()
                 return dict(row) if row else None
         except sqlite3.Error as e:
-            self._handle_db_error(f"Failed fetching single stock information for {symbol} in the Portfolio for {username}", e)
+            self._handle_db_error(f"Failed fetching single stock information for {symbol} in the Portfolio for {portfolio_id}", e)
 
-    def add_stock(self, stock: Stock) -> None:
+    def add_stock(self, stock: Stock, portfolio_id: str) -> None:
         """Inserts stock configurations directly. Relies on higher-level verification for duplicates."""
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
                     """
-                    INSERT INTO portfolio (symbol, username, company, exchange, currency, owned, cost)
-                    VALUES (?, ?, ?, ?, ?, ?, ?);
+                    INSERT INTO stocks (symbol, username, portfolio_id, company, exchange, currency, owned, cost)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?);
                     """,
                     (
                         stock.symbol.upper().strip(),
                         stock.username,
+                        portfolio_id,
                         stock.company,
                         stock.exchange,
                         stock.currency.upper().strip(),
                         stock.owned,
                         stock.cost,
+
                     ),
                 )
                 conn.commit()
         except sqlite3.Error as e:
             self._handle_db_error(f"Database insertion problem for the stock {stock.symbol}, in the Portfolio for {stock.username}", e)
 
-    def update_stock(self, symbol: str, username: str, update_data: StockUpdateInput) -> None:
+    def update_stock(self, symbol: str, portfolio_id: str, update_data: StockUpdateInput) -> None:
         fields = {k: v for k, v in update_data.model_dump().items() if v is not None}
         
         
@@ -109,27 +113,27 @@ class DatabaseService:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 set_clause = ", ".join([f"{key} = ?" for key in fields.keys()])
-                values = list(fields.values()) + [symbol.upper()] + [username]
+                values = list(fields.values()) + [symbol.upper()] + [portfolio_id]
                 
                 cursor.execute(
-                    f"UPDATE portfolio SET {set_clause} WHERE symbol = ? AND username = ?;", values,
+                    f"UPDATE stocks SET {set_clause} WHERE symbol = ? AND portfolio_id = ?;", values,
                 )
 
                 conn.commit()
 
         except sqlite3.Error as e:
-            self._handle_db_error(f"Database update problem for stock={symbol}, user={username}", e)
+            self._handle_db_error(f"Database update problem for stock={symbol}, portfolio={portfolio_id}", e)
 
 
-    def delete_stock(self, symbol: str, username: str) -> None:
+    def delete_stock(self, symbol: str, portfolio_id: str) -> None:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("DELETE FROM portfolio WHERE symbol = ? and username = ?;", (symbol.upper(), username,))
+                cursor.execute("DELETE FROM stocks WHERE symbol = ? and portfolio_id = ?;", (symbol.upper(), portfolio_id,))
 
                 conn.commit()
         except sqlite3.Error as e:
-            raise self._handle_db_error(f"Database removal task failed for stock={symbol}, user={username}", e)
+            raise self._handle_db_error(f"Database removal task failed for stock={symbol}, portfolio={portfolio_id}", e)
 
 
     def register_user(self, username: str, password: str) -> dict:
@@ -203,3 +207,16 @@ class DatabaseService:
 
         except sqlite3.Error as e:
             raise self._handle_db_error(f"Failed to update password for the User '{username}'.", e)
+        
+    def verify_portfolio_ownership(self, username: str, portfolio_id: str) -> bool:
+        """Security guard checking if the token user owns the portfolio resource."""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT 1 FROM portfolios WHERE id = ? AND username = ?", 
+                    (portfolio_id, username)
+                )
+                return cursor.fetchone() is not None
+        except sqlite3.Error:
+            return False

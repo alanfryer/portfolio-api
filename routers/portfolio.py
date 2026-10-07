@@ -19,20 +19,27 @@ def get_portfolio_service(
 
 
 # --- LIVE PERFORMANCE ROUTES ---
-@router.get("/", response_model=StocksResponse | list[Stock])
+@router.get("/{portfolio_id}", response_model=StocksResponse | list[Stock])
 def get_live_portfolio_valuation(
+    portfolio_id: str,
     view: str | None = None,
     db: DatabaseService = Depends(get_db_service),
     portfolio: PortfolioService = Depends(get_portfolio_service),
     current_user: dict = Depends(get_current_user),
 ):
-    username = current_user["username"]    
-
+      
+    # Enforce multi-tenant asset protection boundaries
+    if not db.verify_portfolio_ownership(current_user["username"], portfolio_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access to this portfolio resource is restricted."
+        )
+        
     if view == "valuation":
         try:
-            valuation_data = portfolio.get_portfolio_valuation(username)
+            valuation_data = portfolio.get_portfolio_valuation(portfolio_id)
         except Exception as e:
-            logger.error(f"Valuation service failed for user {username}: {str(e)}")
+            logger.error(f"Valuation service failed for user {portfolio_id}: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY, 
                 detail="Failed to retrieve real-time external valuation metrics."
@@ -42,29 +49,38 @@ def get_live_portfolio_valuation(
             # Fixed Status Code: Use 404 instead of 200 for missing target resources
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, 
-                detail=f"No Stocks found in the Portfolio for user '{username}'."
+                detail=f"No Stocks found in the Portfolio for user '{portfolio_id}'."
             )
         return valuation_data
     
-    stocks = db.get_portfolio(username)
-    return stocks if stocks is not None else []
+    return db.get_portfolio(portfolio_id)
+    #return stocks if stocks is not None else []
 
 
-@router.get("/{symbol}", response_model=StockResponse | Stock)
+@router.get("/{portfolio_id}/{symbol}", response_model=StockResponse | Stock)
 def get_stock(
+    portfolio_id: str,
     symbol: str,
     view: str | None = None,
     db: DatabaseService = Depends(get_db_service),
     portfolio: PortfolioService = Depends(get_portfolio_service),
     current_user: dict = Depends(get_current_user),
 ):
-    username = current_user["username"]
+
+
     symbol_upper = symbol.upper().strip()
-    suffix_msg = f"the Stock '{symbol_upper}' in the Portfolio owned by {username}"
-    
+    suffix_msg = f"the Stock '{symbol_upper}' in the Portfolio owned by {portfolio_id}"
+      
+    # Enforce multi-tenant asset protection boundaries
+    if not db.verify_portfolio_ownership(current_user["username"], portfolio_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access to this portfolio resource is restricted."
+        )
+            
     if view == "valuation":
         try:
-            live_price = portfolio.get_latest_price(symbol_upper, username)
+            live_price = portfolio.get_latest_price(symbol_upper, portfolio_id)
         except HTTPException as e:
             error_msg = f"Live price lookup failed for {suffix_msg}."
             logger.error(error_msg)
@@ -80,7 +96,7 @@ def get_stock(
             )
         return live_price
     
-    stock = db.get_stock(symbol_upper, username)
+    stock = db.get_stock(symbol_upper, portfolio_id)
     if not stock:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -90,64 +106,90 @@ def get_stock(
     return stock
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED)
+@router.post("/{portfolio_id}", status_code=status.HTTP_201_CREATED)
 def add_stock_to_portfolio(
     stock: Stock,
+    portfolio_id: str,    
     db: DatabaseService = Depends(get_db_service),
     current_user: dict = Depends(get_current_user),
+   
 ):
-    username = current_user["username"]
+
+    # Enforce multi-tenant asset protection boundaries
+    if not db.verify_portfolio_ownership(current_user["username"], portfolio_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access to this portfolio resource is restricted."
+        )
+        
     stock.symbol = stock.symbol.upper().strip()
-    stock.username = username # Security Force: Overwrite payload variance to protect current user bounds
-    
-    existing_stock = db.get_stock(stock.symbol, username)
+    stock.username = portfolio_id # Security Force: Overwrite payload variance to protect current user bounds
+
+    existing_stock = db.get_stock(stock.symbol, portfolio_id)
+
     if existing_stock:
         # Fixed Status Code: 409 Conflict accurately represents resource duplication collisions
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Stock {stock.symbol} already exists in the Portfolio for '{username}'. Use PUT to modify it."
+            detail=f"Stock {stock.symbol} already exists in the Portfolio for '{portfolio_id}'. Use PUT to modify it."
         )
 
-    db.add_stock(stock)
+    db.add_stock(stock, portfolio_id)
     return {"message": f"Stock {stock.symbol} successfully added.", "symbol": stock.symbol}
 
 
-@router.put("/{symbol}", status_code=status.HTTP_200_OK)
+@router.put("/{portfolio_id}/{symbol}", status_code=status.HTTP_200_OK)
 def update_portfolio_stock(
+    portfolio_id: str,
     symbol: str,
     update_data: StockUpdateInput,
     db: DatabaseService = Depends(get_db_service),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),    
 ):
-    username = current_user["username"]
+
+    # Enforce multi-tenant asset protection boundaries
+    if not db.verify_portfolio_ownership(current_user["username"], portfolio_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access to this portfolio resource is restricted."
+        )
+            
     symbol_upper = symbol.upper().strip()
 
-    stock = db.get_stock(symbol_upper, username)
+    stock = db.get_stock(symbol_upper, portfolio_id)
     if not stock:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"The Stock '{symbol_upper}' does not exist in the Portfolio for {username}."
+            detail=f"The Stock '{symbol_upper}' does not exist in the Portfolio for {portfolio_id}."
         )
 
-    db.update_stock(symbol_upper, username, update_data)
+    db.update_stock(symbol_upper, portfolio_id, update_data)
     return {"message": f"Stock {symbol_upper} updated successfully."}
 
 
-@router.delete("/{symbol}")
+@router.delete("/{portfolio_id}/{symbol}")
 def delete_portfolio_stock(
+    portfolio_id: str,
     symbol: str,
     db: DatabaseService = Depends(get_db_service),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),    
 ):
-    username = current_user["username"]
+
+    # Enforce multi-tenant asset protection boundaries
+    if not db.verify_portfolio_ownership(current_user["username"], portfolio_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access to this portfolio resource is restricted."
+        )
+        
     symbol_upper = symbol.upper().strip()
 
-    stock = db.get_stock(symbol_upper, username)
+    stock = db.get_stock(symbol_upper, portfolio_id)
     if not stock:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"The Stock '{symbol_upper}' does not exist in the Portfolio for {username}."
+            detail=f"The Stock '{symbol_upper}' does not exist in the Portfolio for {portfolio_id}."
         )
 
-    db.delete_stock(symbol_upper, username)
+    db.delete_stock(symbol_upper, portfolio_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -15,16 +15,16 @@ class PortfolioService:
         self.exchange_rate_service = ExchangeRateService()
         logger.info("Initialized the Portfolio Service")
 
-    def get_latest_price(self, ticker_symbol: str, username: str) -> StockResponse:
+    def get_latest_price(self, ticker_symbol: str, portfolio_id: str) -> StockResponse:
         """Fetches live stock values and normalizes metrics into portfolio currency."""
         symbol_clean = ticker_symbol.upper().strip()
         
         # 1. Fetch metadata configuration from internal DB first
-        info = self.database_service.get_stock(symbol_clean, username)
+        info = self.database_service.get_stock(symbol_clean, portfolio_id)
         if not info:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Asset metadata {symbol_clean} not configured for user {username}."
+                detail=f"Asset metadata {symbol_clean} not configured for user {portfolio_id}."
             )
 
         company = info.get("company", "Unknown Company")
@@ -93,6 +93,8 @@ class PortfolioService:
         stock_date = datetime.datetime.now(datetime.timezone.utc).strftime("%d-%m-%Y %H:%M")
 
         return StockResponse(
+            portfolio_id=portfolio_id,
+            symbol=symbol_clean,
             company=company,
             exchange=exchange,
             owned=owned,
@@ -106,10 +108,10 @@ class PortfolioService:
             overall_change=round(overall_change, 2),
         )
 
-    def get_portfolio_valuation(self, username: str) -> StocksResponse | None:
+    def get_portfolio_valuation(self, portfolio_id: str) -> StocksResponse | None:
         """Aggregates performance cross-checks across all active positions."""
-        stocks = self.database_service.get_portfolio(username)
-        
+        stocks = self.database_service.get_portfolio(portfolio_id)
+
         if not stocks:
             return None
        
@@ -123,8 +125,10 @@ class PortfolioService:
                 continue
                 
             try:
+
                 # Loop fault containment: Let individual asset lookup crashes stay localized
-                stock_res = self.get_latest_price(symbol, username)
+                stock_res = self.get_latest_price(symbol, portfolio_id)
+    
                 portfolio_position += stock_res.overall_change
                 portfolio_daily_position += stock_res.daily_change
                 compiled_data.append(stock_res)
