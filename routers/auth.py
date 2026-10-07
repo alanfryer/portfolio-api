@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
 from services.authorization_service import AuthorizationService, ACCESS_TOKEN_EXPIRE_MINUTES
 from services.database_service import DatabaseService
-from schemas import UserUpdateInput
+from schemas import UserUpdateInput, User
 import datetime
 
 router = APIRouter(prefix="/v1/users", tags=["Authentication"])
@@ -18,18 +18,13 @@ def get_auth_service() -> AuthorizationService:
     return AuthorizationService()
 
 
-class UserRegisterSchema(BaseModel):
-    username: str = Field(..., min_length=3, max_length=50)
-    password: str = Field(..., min_length=6)
-
-
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def add_user(
-    user_data: UserRegisterSchema, db: DatabaseService = Depends(get_db_service)
+    user_data: User, db: DatabaseService = Depends(get_db_service)
 ):
     """Register a new User for accessing the Portfolio."""
-    
-    db.register_user(user_data.username, user_data.password)
+    print(user_data.scopes)
+    db.register_user(user_data.username, user_data.password, user_data.scopes)
     return {"message": f"User {user_data.username} successfully added."}
 
 @router.delete("/{username}")

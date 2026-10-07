@@ -20,18 +20,20 @@ def get_portfolio_service(
 async def authorize(
     portfolio_id: str,
     db: DatabaseService = Depends(get_db_service),
-    current_user: dict = Depends(authenticate)
+    authenticated_user: dict = Depends(authenticate)
 ) -> dict:
     """
     Verifies that the authenticated user owns the specified portfolio.
     """
-    current_user = current_user["username"]
-    if not db.verify_portfolio_ownership(current_user, portfolio_id):
+    user = authenticated_user["username"]
+    if not db.verify_portfolio_ownership(authenticated_user["username"], portfolio_id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Access to this Portfolio is restricted to user '{current_user}'."
+            detail=f"Access to the Portfolio '{portfolio_id}' is not allowed by the user '{user}."
         )
-    return current_user
+        
+    logger.info(f"Successfully authenticated: {authenticated_user}")
+    return authenticated_user
 
 # --- LIVE PERFORMANCE ROUTES ---
 @router.get("/{portfolio_id}", response_model=StocksResponse | list[Stock])
@@ -40,7 +42,7 @@ def get_live_portfolio_valuation(
     view: str | None = None,
     db: DatabaseService = Depends(get_db_service),
     portfolio: PortfolioService = Depends(get_portfolio_service),
-    current_user: dict = Depends(authorize),
+    authenticated: dict = Depends(authorize),
 ):
         
     if view == "valuation":
@@ -70,12 +72,12 @@ def get_stock(
     view: str | None = None,
     db: DatabaseService = Depends(get_db_service),
     portfolio: PortfolioService = Depends(get_portfolio_service),
-    current_user: dict = Depends(authorize),
+    authenticated: dict = Depends(authorize),
 ):
 
     symbol_upper = symbol.upper().strip()
     suffix_msg = f"the Stock '{symbol_upper}' in the Portfolio owned by {portfolio_id}"
-            
+
     if view == "valuation":
         try:
             live_price = portfolio.get_latest_price(symbol_upper, portfolio_id)
@@ -109,7 +111,7 @@ def add_stock_to_portfolio(
     stock: Stock,
     portfolio_id: str,    
     db: DatabaseService = Depends(get_db_service),
-    current_user: dict = Depends(authorize),
+    authenticated: dict = Depends(authorize),
    
 ):
 
@@ -134,7 +136,7 @@ def update_portfolio_stock(
     symbol: str,
     update_data: StockUpdateInput,
     db: DatabaseService = Depends(get_db_service),
-    current_user: dict = Depends(authorize),    
+    authenticated: dict = Depends(authorize),    
 ):
 
     symbol_upper = symbol.upper().strip()
@@ -155,7 +157,7 @@ def delete_portfolio_stock(
     portfolio_id: str,
     symbol: str,
     db: DatabaseService = Depends(get_db_service),
-    current_user: dict = Depends(authorize),  
+    authenticated: dict = Depends(authorize),  
 ):
         
     symbol_upper = symbol.upper().strip()

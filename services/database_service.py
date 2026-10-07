@@ -132,12 +132,12 @@ class DatabaseService:
             raise self._handle_db_error(f"Database removal task failed for stock={symbol}, portfolio={portfolio_id}", e)
 
 
-    def register_user(self, username: str, password: str) -> dict:
+    def register_user(self, username: str, password: str, scopes: str) -> dict:
         """Validates availability and registers a new user securely into SQLite."""
         hashed_password = self._get_password_hash(password)
         # Store scopes as a simple comma-separated string for SQLite simplicity
-        scopes_str = "user"
-
+        scopes_str = ",".join(scopes)
+        
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()

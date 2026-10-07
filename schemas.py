@@ -1,6 +1,37 @@
-from pydantic import BaseModel, Field, SecretStr
-from typing import List, Optional
+from typing import Annotated, List
+from pydantic import BaseModel, BeforeValidator, Field
+# 1. Define allowed scopes
+ALLOWED_SCOPES = {"admin", "view", "add", "update", "delete"}
 
+# 2. Validator function to check list items
+def validate_list_scopes(v: any) -> List[str]:
+    # Handle comma-delimited string input by converting it to a list first
+    if isinstance(v, str):
+        items = [s.strip() for s in v.split(",") if s.strip()]
+    elif isinstance(v, list):
+        items = [str(s).strip() for s in v]
+    else:
+        raise ValueError("Input must be a list or a comma-separated string")
+
+    # Check each item against the allowed set
+    invalid_items = [item for item in items if item not in ALLOWED_SCOPES]
+    if invalid_items:
+        raise ValueError(
+            f"Invalid scope(s) found: {', '.join(invalid_items)}. "
+            f"Allowed options are: {', '.join(ALLOWED_SCOPES)}"
+        )
+        
+    return items
+
+# 3. Create the type alias
+AnyScopeList = Annotated[List[str], BeforeValidator(validate_list_scopes)]
+
+# 4. Apply it to your schema
+class User(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=6),
+    scopes: AnyScopeList
+       
 class StockBase(BaseModel):
     symbol: str 
     company: str
@@ -10,7 +41,6 @@ class StockBase(BaseModel):
     cost: float
 
 class Stock(StockBase):
-    #id: Optional[int] = None
     portfolio_id: str = Field(..., description="The parent portfolio identifier this asset belongs to")
 
     class Config:
