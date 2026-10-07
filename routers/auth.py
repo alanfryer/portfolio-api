@@ -23,7 +23,7 @@ async def add_user(
     user_data: User, db: DatabaseService = Depends(get_db_service)
 ):
     """Register a new User for accessing the Portfolio."""
-    print(user_data.scopes)
+
     db.register_user(user_data.username, user_data.password, user_data.scopes)
     return {"message": f"User {user_data.username} successfully added."}
 

@@ -1,5 +1,5 @@
 from typing import Annotated, List
-from pydantic import BaseModel, BeforeValidator, Field
+from pydantic import BaseModel, BeforeValidator, Field, EmailStr
 # 1. Define allowed scopes
 ALLOWED_SCOPES = {"admin", "view", "add", "update", "delete"}
 
@@ -28,7 +28,7 @@ AnyScopeList = Annotated[List[str], BeforeValidator(validate_list_scopes)]
 
 # 4. Apply it to your schema
 class User(BaseModel):
-    username: str = Field(..., min_length=3, max_length=50)
+    username: EmailStr
     password: str = Field(..., min_length=6),
     scopes: AnyScopeList
        

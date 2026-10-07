@@ -26,7 +26,8 @@ async def authorize(
     Verifies that the authenticated user owns the specified portfolio.
     """
     user = authenticated_user["username"]
-    if not db.verify_portfolio_ownership(authenticated_user["username"], portfolio_id):
+
+    if not db.verify_portfolio_ownership(user, portfolio_id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Access to the Portfolio '{portfolio_id}' is not allowed by the user '{user}."
