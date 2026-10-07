@@ -1,6 +1,6 @@
 import logging
 from fastapi import APIRouter, status, Depends, Response, HTTPException
-from schemas import Stock, StockUpdateInput, StockResponse, StocksResponse
+from schemas import Stock, StockBase, StockUpdateInput, StockResponse, StocksResponse
 from exceptions import StockNotFoundException, StockInfoNotFoundException, PortfolioException
 from services.authorization_service import get_current_user
 from services.database_service import DatabaseService
@@ -57,7 +57,7 @@ def get_live_portfolio_valuation(
     #return stocks if stocks is not None else []
 
 
-@router.get("/{portfolio_id}/{symbol}", response_model=StockResponse | Stock)
+@router.get("/{portfolio_id}/{symbol}", response_model=StockResponse | StockBase)
 def get_stock(
     portfolio_id: str,
     symbol: str,
@@ -123,7 +123,6 @@ def add_stock_to_portfolio(
         )
         
     stock.symbol = stock.symbol.upper().strip()
-    stock.username = portfolio_id # Security Force: Overwrite payload variance to protect current user bounds
 
     existing_stock = db.get_stock(stock.symbol, portfolio_id)
 

@@ -73,22 +73,22 @@ FROM portfolio_bkp;
 BEGIN TRANSACTION;
 
 -- 2. Construct the new structural layout with your composite primary key
-CREATE TABLE portfolio_new (
+CREATE TABLE stocks_new (
     symbol TEXT NOT NULL,
     company TEXT,
     exchange TEXT,
     currency TEXT,
     owned REAL,
     cost REAL,
-    username TEXT NOT NULL,
-    PRIMARY KEY (symbol, username)
+    portfolio_id TEXT REFERENCES portfolios(id) ON DELETE CASCADE,
+    PRIMARY KEY (symbol, portfolio_id)
 );
 
 -- 3. Hydrate the new table using your existing rows
 -- (INSERT OR IGNORE strips out any duplicate positions if they exist)
-INSERT OR IGNORE INTO portfolio_new (symbol, company, exchange, currency, owned, cost, username)
-SELECT symbol, company, exchange, currency, owned, cost, username
-FROM portfolio;
+INSERT OR IGNORE INTO stocks_new (symbol, company, exchange, currency, owned, cost, portfolio_id)
+SELECT symbol, company, exchange, currency, owned, cost, portfolio_id
+FROM stocks;
 
 -- 4. Delete the legacy data structure
 DROP TABLE portfolio;

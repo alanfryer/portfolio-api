@@ -2,7 +2,6 @@ from pydantic import BaseModel, Field, SecretStr
 from typing import List, Optional
 
 class StockBase(BaseModel):
-    #username: str
     symbol: str 
     company: str
     exchange: str

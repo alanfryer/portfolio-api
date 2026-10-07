@@ -25,7 +25,6 @@ def get_exchange_rates(currency_symbol: str, current_user: dict = Depends(get_cu
     """
 
     username = current_user["username"]
-    print(f"-----------------{username}")
     
     # Call the core utility system to process the API request and handle file mutations
     return ExchangeRateService.get_exchange_rates(currency_symbol)

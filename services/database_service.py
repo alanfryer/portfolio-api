@@ -50,7 +50,7 @@ class DatabaseService:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "SELECT username, symbol, company, exchange, currency, owned, cost, portfolio_id FROM stocks WHERE portfolio_id = ?;",
+                    "SELECT symbol, company, exchange, currency, owned, cost, portfolio_id FROM stocks WHERE portfolio_id = ?;",
                     (portfolio_id,),
                 )
                 rows = cursor.fetchall()
@@ -79,12 +79,11 @@ class DatabaseService:
                 cursor = conn.cursor()
                 cursor.execute(
                     """
-                    INSERT INTO stocks (symbol, username, portfolio_id, company, exchange, currency, owned, cost)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                    INSERT INTO stocks (symbol, portfolio_id, company, exchange, currency, owned, cost)
+                    VALUES (?, ?, ?, ?, ?, ?, ?);
                     """,
                     (
                         stock.symbol.upper().strip(),
-                        stock.username,
                         portfolio_id,
                         stock.company,
                         stock.exchange,
@@ -96,7 +95,7 @@ class DatabaseService:
                 )
                 conn.commit()
         except sqlite3.Error as e:
-            self._handle_db_error(f"Database insertion problem for the stock {stock.symbol}, in the Portfolio for {stock.username}", e)
+            self._handle_db_error(f"Database insertion problem for the stock {stock.symbol}, in the Portfolio for {portfolio_id}", e)
 
     def update_stock(self, symbol: str, portfolio_id: str, update_data: StockUpdateInput) -> None:
         fields = {k: v for k, v in update_data.model_dump().items() if v is not None}
