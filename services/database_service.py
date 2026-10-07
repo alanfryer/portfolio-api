@@ -100,10 +100,8 @@ class DatabaseService:
     def update_stock(self, symbol: str, portfolio_id: str, update_data: StockUpdateInput) -> None:
         fields = {k: v for k, v in update_data.model_dump().items() if v is not None}
         
-        
         if not fields:
             raise self._handle_db_error("No fields provided for update", e)
-
 
         if "currency" in fields:
             fields["currency"] = fields["currency"].upper()
@@ -113,7 +111,6 @@ class DatabaseService:
                 cursor = conn.cursor()
                 set_clause = ", ".join([f"{key} = ?" for key in fields.keys()])
                 values = list(fields.values()) + [symbol.upper()] + [portfolio_id]
-                
                 cursor.execute(
                     f"UPDATE stocks SET {set_clause} WHERE symbol = ? AND portfolio_id = ?;", values,
                 )

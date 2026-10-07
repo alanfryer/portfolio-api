@@ -63,7 +63,7 @@ class AuthorizationService:
 
         return {"access_token": token, "token_type": "bearer"}
 
-    async def get_current_user(self, request: Request) -> dict:
+    async def authenticate(self, request: Request) -> dict:
         """
         FastAPI Dependency that dynamically checks the Authorization header.
         Automatically fixes and handles dynamic Base64 padding structures safely.
@@ -181,4 +181,4 @@ class AuthorizationService:
 # EXPOSE INSTANCE & DEPENDENCY HOOK
 # =====================================================================
 auth_service = AuthorizationService()
-get_current_user = auth_service.get_current_user
+authenticate = auth_service.authenticate

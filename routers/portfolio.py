@@ -2,7 +2,7 @@ import logging
 from fastapi import APIRouter, status, Depends, Response, HTTPException
 from schemas import Stock, StockBase, StockUpdateInput, StockResponse, StocksResponse
 
-from services.authorization_service import get_current_user
+from services.authorization_service import authenticate
 from services.database_service import DatabaseService
 from services.portfolio_service import PortfolioService
 
@@ -17,10 +17,10 @@ def get_portfolio_service(
 ) -> PortfolioService:
     return PortfolioService(db_service)
 
-async def authorize_user(
+async def authorize(
     portfolio_id: str,
     db: DatabaseService = Depends(get_db_service),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(authenticate)
 ) -> dict:
     """
     Verifies that the authenticated user owns the specified portfolio.
@@ -40,7 +40,7 @@ def get_live_portfolio_valuation(
     view: str | None = None,
     db: DatabaseService = Depends(get_db_service),
     portfolio: PortfolioService = Depends(get_portfolio_service),
-    current_user: dict = Depends(authorize_user),
+    current_user: dict = Depends(authorize),
 ):
         
     if view == "valuation":
@@ -70,7 +70,7 @@ def get_stock(
     view: str | None = None,
     db: DatabaseService = Depends(get_db_service),
     portfolio: PortfolioService = Depends(get_portfolio_service),
-    current_user: dict = Depends(authorize_user),
+    current_user: dict = Depends(authorize),
 ):
 
     symbol_upper = symbol.upper().strip()
@@ -109,7 +109,7 @@ def add_stock_to_portfolio(
     stock: Stock,
     portfolio_id: str,    
     db: DatabaseService = Depends(get_db_service),
-    current_user: dict = Depends(authorize_user),
+    current_user: dict = Depends(authorize),
    
 ):
 
@@ -134,7 +134,7 @@ def update_portfolio_stock(
     symbol: str,
     update_data: StockUpdateInput,
     db: DatabaseService = Depends(get_db_service),
-    current_user: dict = Depends(authorize_user),    
+    current_user: dict = Depends(authorize),    
 ):
 
     symbol_upper = symbol.upper().strip()
@@ -155,7 +155,7 @@ def delete_portfolio_stock(
     portfolio_id: str,
     symbol: str,
     db: DatabaseService = Depends(get_db_service),
-    current_user: dict = Depends(authorize_user),  
+    current_user: dict = Depends(authorize),  
 ):
         
     symbol_upper = symbol.upper().strip()

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from services.authorization_service import get_current_user
+from services.authorization_service import authenticate
 from services.exchange_rate_service import ExchangeRateService
 
 # Initialise the router module for exchange rate operations
@@ -15,7 +15,7 @@ def get_exchange_rate_service() -> ExchangeRateService:
 # defining this as a standard synchronous function forces FastAPI to execute it
 # within a separate thread pool. This prevents it from blocking the main event loop.
 @router.get("/v1/exchange/rates/{currency_symbol}")
-def get_exchange_rates(currency_symbol: str, current_user: dict = Depends(get_current_user)):
+def get_exchange_rates(currency_symbol: str, current_user: dict = Depends(authenticate)):
     """
     HTTP GET Endpoint: Fetches live exchange rates for a specific base currency
     and caches the response layout locally into 'exchange_rates.json'.
