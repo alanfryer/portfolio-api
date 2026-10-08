@@ -1,5 +1,5 @@
 from typing import Annotated, List
-from pydantic import BaseModel, BeforeValidator, Field, EmailStr
+from pydantic import BaseModel, BeforeValidator, Field, EmailStr, SecretStr
 # 1. Define allowed scopes
 ALLOWED_SCOPES = {"admin", "view", "add", "update", "delete"}
 

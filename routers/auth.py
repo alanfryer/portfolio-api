@@ -1,11 +1,13 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
 from services.authorization_service import AuthorizationService, ACCESS_TOKEN_EXPIRE_MINUTES
 from services.database_service import DatabaseService
 from schemas import UserUpdateInput, User
-import datetime
 
+logger = logging.getLogger("portfolio_app")
 router = APIRouter(prefix="/v1/users", tags=["Authentication"])
 
 
@@ -24,10 +26,9 @@ async def add_user(
 ):
     """Register a new User for accessing the Portfolio."""
 
-    db.register_user(user_data.username, user_data.password, user_data.scopes)
-    return {"message": f"User {user_data.username} successfully added."}
+    return db.register_user(user_data.username, user_data.password, user_data.scopes)
 
-@router.delete("/{username}")
+@router.delete("/{username}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_user(username: str, db: DatabaseService = Depends(get_db_service)):
     """Delete a User from the Portfolio."""
     
@@ -40,7 +41,8 @@ def delete_user(username: str, db: DatabaseService = Depends(get_db_service)):
         )
 
     db.delete_user(username)
-    return {"message": f"User {username} successfully deleted."}
+    logger.info(f"Deleted User '{username}'.")
+    
 
 @router.put("/{username}")
 def update_user_password(
@@ -59,7 +61,7 @@ def update_user_password(
         )
     
     db.update_user_password(username, update_data)
-    return {"message": f"User {username} successfully updated."}
+    logger.info(f"Password for User '{username}' updated.")
 
 
 @router.post("/token")

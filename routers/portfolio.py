@@ -37,7 +37,7 @@ async def authorize(
     return authenticated_user
 
 # --- LIVE PERFORMANCE ROUTES ---
-@router.get("/{portfolio_id}", response_model=StocksResponse | list[Stock])
+@router.get("/{portfolio_id}", response_model=StocksResponse | list[Stock], status_code=status.HTTP_200_OK)
 def get_live_portfolio_valuation(
     portfolio_id: str,
     view: str | None = None,
@@ -66,7 +66,7 @@ def get_live_portfolio_valuation(
     
     return db.get_portfolio(portfolio_id)
     
-@router.get("/{portfolio_id}/{symbol}", response_model=StockResponse | StockBase)
+@router.get("/{portfolio_id}/{symbol}", response_model=StockResponse | StockBase, status_code=status.HTTP_200_OK)
 def get_stock(
     portfolio_id: str,
     symbol: str,
@@ -107,7 +107,7 @@ def get_stock(
     return stock
 
 
-@router.post("/{portfolio_id}", status_code=status.HTTP_201_CREATED)
+@router.post("/{portfolio_id}", response_model=Stock, status_code=status.HTTP_201_CREATED)
 def add_stock_to_portfolio(
     stock: Stock,
     portfolio_id: str,    
@@ -124,14 +124,14 @@ def add_stock_to_portfolio(
         # Fixed Status Code: 409 Conflict accurately represents resource duplication collisions
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Stock {stock.symbol} already exists in the Portfolio for '{portfolio_id}'. Use PUT to modify it."
+            detail=f"Stock '{stock.symbol}' already exists in the Portfolio for '{portfolio_id}'. Use PUT to modify it."
         )
 
     db.add_stock(stock, portfolio_id)
-    return {"message": f"Stock {stock.symbol} successfully added.", "symbol": stock.symbol}
+    return stock
 
 
-@router.put("/{portfolio_id}/{symbol}", status_code=status.HTTP_200_OK)
+@router.put("/{portfolio_id}/{symbol}",  response_model=StockUpdateInput, response_model_exclude_unset=True, status_code=status.HTTP_200_OK)
 def update_portfolio_stock(
     portfolio_id: str,
     symbol: str,
@@ -146,14 +146,14 @@ def update_portfolio_stock(
     if not stock:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"The Stock '{symbol_upper}' does not exist in the Portfolio for {portfolio_id}."
+            detail=f"The Stock '{symbol_upper}' does not exist in the Portfolio for '{portfolio_id}'."
         )
 
     db.update_stock(symbol_upper, portfolio_id, update_data)
-    return {"message": f"Stock {symbol_upper} updated successfully."}
+    return update_data
 
 
-@router.delete("/{portfolio_id}/{symbol}")
+@router.delete("/{portfolio_id}/{symbol}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_portfolio_stock(
     portfolio_id: str,
     symbol: str,
@@ -167,8 +167,9 @@ def delete_portfolio_stock(
     if not stock:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"The Stock '{symbol_upper}' does not exist in the Portfolio for {portfolio_id}."
+            detail=f"The Stock '{symbol_upper}' does not exist in the Portfolio for '{portfolio_id}'."
         )
 
     db.delete_stock(symbol_upper, portfolio_id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    logger.info(f"Successfully deleted Stock '{symbol_upper}' from Portfolio: '{portfolio_id}'.")
+    return None

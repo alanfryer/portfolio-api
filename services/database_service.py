@@ -2,7 +2,7 @@ import sqlite3
 import logging
 import bcrypt
 from fastapi import HTTPException, status
-from schemas import Stock, StockBase, StockUpdateInput, UserUpdateInput
+from schemas import Stock, User, StockBase, StockUpdateInput, UserUpdateInput
 
 logger = logging.getLogger("portfolio_app")
 
@@ -146,10 +146,14 @@ class DatabaseService:
                     (username, hashed_password, scopes_str),
                 )
                 conn.commit()
+                return User(username=username,
+                            password="*******",
+                            scopes=scopes
+                            )
         except sqlite3.IntegrityError as e:
             # Triggered if the username already exists due to PRIMARY KEY constraint
             raise self._handle_db_error(f"The User '{username}' is already registered.", e)
-
+        return
 
     def delete_user(self, username: str) -> None:
         """Deletes a user from SQLite."""
