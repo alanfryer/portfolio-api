@@ -4,10 +4,12 @@ import bcrypt  # Use native bcrypt directly
 import jwt
 import logging
 import os
+
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.security.utils import get_authorization_scheme_param
 from jwt.exceptions import ExpiredSignatureError
+from pydantic import SecretStr 
 from services.database_service import DatabaseService
 
 # Configuration (Keep environment variables in production)
@@ -26,24 +28,29 @@ class AuthorizationService:
 
         
     @staticmethod
-    def get_password_hash(password: str) -> str:
+    def get_password_hash(password: SecretStr) -> str:
         """Hashes a plain text password safely using native bcrypt."""
-        password_bytes = password.encode("utf-8")
+        # Safely extract the secret string value before encoding
+        raw_password = password.get_secret_value()
+        password_bytes = raw_password.encode("utf-8")
         salt = bcrypt.gensalt()
         hashed_bytes = bcrypt.hashpw(password_bytes, salt)
         return hashed_bytes.decode("utf-8")
 
     @staticmethod
-    def verify_password(plain_password: str, hashed_password: str) -> bool:
+    def verify_password(plain_password: SecretStr, hashed_password: str) -> bool:
         """Verifies a plain text password against a stored bcrypt hash string."""
         try:
+            # Safely extract the secret string value before encoding
+            raw_password = plain_password.get_secret_value()
             return bcrypt.checkpw(
-                plain_password.encode("utf-8"), hashed_password.encode("utf-8")
+                raw_password.encode("utf-8"), hashed_password.encode("utf-8")
             )
         except Exception as e:
+            logger.error(f"Password verification runtime error: {e}")
             return False
 
-    def create_access_token(self, username: str, password: str) -> str:
+    def create_access_token(self, username: str, password: SecretStr) -> dict:
         """Generates a secure JSON Web Token."""
 
         user = self.authenticate_user(username, password)
@@ -97,8 +104,9 @@ class AuthorizationService:
                         scheme="Basic",
                     )
 
-                username, password = decoded_str.split(":", 1)
-
+                username, raw_password = decoded_str.split(":", 1)
+                # FIX: Wrap the plain string password in a Pydantic SecretStr
+                password = SecretStr(raw_password)
             except Exception as e:
                 raise self.create_auth_exception(
                     detail=f"Invalid Base64 encoding structure {e}",
@@ -149,8 +157,7 @@ class AuthorizationService:
                     scheme="Bearer"
                 )
 
-
-    def authenticate_user(self, username, password):
+    def authenticate_user(self, username: str, password: SecretStr):
         user = self.database_service.get_user(username)
 
         if not user:
@@ -159,8 +166,8 @@ class AuthorizationService:
             )
 
         if not self.verify_password(password, user["hashed_password"]):
-            self.create_auth_exception(
-                detail=f"Password verification failed for the User '{user["username"]}'",
+            raise self.create_auth_exception(
+                detail=f"Password verification failed for the User '{user['username']}'",
                 scheme="Bearer",
             )
 

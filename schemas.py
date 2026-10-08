@@ -29,7 +29,7 @@ AnyScopeList = Annotated[List[str], BeforeValidator(validate_list_scopes)]
 # 4. Apply it to your schema
 class User(BaseModel):
     username: EmailStr
-    password: str = Field(..., min_length=6),
+    password: SecretStr
     scopes: AnyScopeList
        
 class StockBase(BaseModel):
@@ -68,4 +68,4 @@ class StockUpdateInput(BaseModel):
 
 
 class UserUpdateInput(BaseModel):
-    password: str = Field(..., min_length=6)
+    password: SecretStr

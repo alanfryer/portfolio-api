@@ -2,6 +2,7 @@ import sqlite3
 import logging
 import bcrypt
 from fastapi import HTTPException, status
+from pydantic import SecretStr 
 from schemas import Stock, User, StockBase, StockUpdateInput, UserUpdateInput
 
 logger = logging.getLogger("portfolio_app")
@@ -32,9 +33,12 @@ class DatabaseService:
             detail=error_msg
         )
 
-    def _get_password_hash(self, password: str) -> str:
+    def _get_password_hash(self, password: SecretStr) -> str:
+        """Extracts the raw password from SecretStr and hashes it securely."""
         try:
-            password_bytes = password.encode("utf-8")
+            # Safely extract the secret string value before encoding
+            raw_password = password.get_secret_value()
+            password_bytes = raw_password.encode("utf-8")
             salt = bcrypt.gensalt()
             return bcrypt.hashpw(password_bytes, salt).decode("utf-8")
         except Exception as e:
@@ -43,7 +47,7 @@ class DatabaseService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Security framework processing failure."
             )
-
+    
     # --- PORTFOLIO OPERATIONS ---
     def get_portfolio(self, portfolio_id: str) -> list[StockBase]:
         try:
@@ -132,7 +136,8 @@ class DatabaseService:
             raise self._handle_db_error(f"Database removal task failed for stock={symbol}, portfolio={portfolio_id}", e)
 
 
-    def register_user(self, username: str, password: str, scopes: str) -> dict:
+    # --- USER OPERATIONS ---
+    def register_user(self, username: str, password: SecretStr, scopes: list[str]) -> User:
         """Validates availability and registers a new user securely into SQLite."""
         hashed_password = self._get_password_hash(password)
         # Store scopes as a simple comma-separated string for SQLite simplicity
@@ -146,14 +151,9 @@ class DatabaseService:
                     (username, hashed_password, scopes_str),
                 )
                 conn.commit()
-                return User(username=username,
-                            password="*******",
-                            scopes=scopes
-                            )
+                return User(username=username, password=password, scopes=scopes)
         except sqlite3.IntegrityError as e:
-            # Triggered if the username already exists due to PRIMARY KEY constraint
             raise self._handle_db_error(f"The User '{username}' is already registered.", e)
-        return
 
     def delete_user(self, username: str) -> None:
         """Deletes a user from SQLite."""

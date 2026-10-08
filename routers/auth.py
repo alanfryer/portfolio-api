@@ -2,7 +2,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel, Field
+from pydantic import SecretStr
 from services.authorization_service import AuthorizationService, ACCESS_TOKEN_EXPIRE_MINUTES
 from services.database_service import DatabaseService
 from schemas import UserUpdateInput, User
@@ -73,4 +73,5 @@ async def get_jwt_token(
     Validates the User credentials and returns a JWT Token valid for 30 minutes.
     Accepts application/x-www-form-urlencoded inputs (username & password).
     """
-    return auth.create_access_token(form_data.username, form_data.password)
+    password = SecretStr(form_data.password)
+    return auth.create_access_token(form_data.username, password)
