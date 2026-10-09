@@ -2,7 +2,7 @@ import logging
 from fastapi import APIRouter, status, Depends, Response, HTTPException
 from schemas import Stock, StockBase, StockUpdateInput, StockResponse, StocksResponse
 
-from services.authorization_service import authenticate
+from services.authorization_service import authorize
 from services.database_service import DatabaseService
 from services.portfolio_service import PortfolioService
 
@@ -17,24 +17,6 @@ def get_portfolio_service(
 ) -> PortfolioService:
     return PortfolioService(db_service)
 
-async def authorize(
-    portfolio_id: str,
-    db: DatabaseService = Depends(get_db_service),
-    authenticated_user: dict = Depends(authenticate)
-) -> dict:
-    """
-    Verifies that the authenticated user owns the specified portfolio.
-    """
-    user = authenticated_user["username"]
-
-    if not db.verify_portfolio_ownership(user, portfolio_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Access to the Portfolio '{portfolio_id}' is not allowed by the user '{user}."
-        )
-        
-    logger.info(f"Successfully authenticated: {authenticated_user}")
-    return authenticated_user
 
 # --- LIVE PERFORMANCE ROUTES ---
 @router.get("/{portfolio_id}", response_model=StocksResponse | list[Stock], status_code=status.HTTP_200_OK)
@@ -131,13 +113,14 @@ def add_stock_to_portfolio(
     return stock
 
 
-@router.put("/{portfolio_id}/{symbol}",  response_model=StockUpdateInput, response_model_exclude_unset=True, status_code=status.HTTP_200_OK)
+@router.put("/{portfolio_id}/{symbol}", response_model=StockUpdateInput, status_code=status.HTTP_200_OK)
 def update_portfolio_stock(
     portfolio_id: str,
     symbol: str,
     update_data: StockUpdateInput,
     db: DatabaseService = Depends(get_db_service),
-    authenticated: dict = Depends(authorize),    
+    # This matches the instance hook cleanly, matching your url parameter injection mapping
+    authenticated_user: dict = Depends(authorize),    
 ):
 
     symbol_upper = symbol.upper().strip()

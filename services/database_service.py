@@ -142,7 +142,7 @@ class DatabaseService:
         hashed_password = self._get_password_hash(password)
         # Store scopes as a simple comma-separated string for SQLite simplicity
         scopes_str = ",".join(scopes)
-        
+
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
