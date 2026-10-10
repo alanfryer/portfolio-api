@@ -19,7 +19,7 @@ def get_portfolio_service(
 
 
 # --- LIVE PERFORMANCE ROUTES ---
-@router.get("/{portfolio_id}", response_model=StocksResponse | list[Stock], status_code=status.HTTP_200_OK)
+@router.get("/{portfolio_id}/stocks", response_model=StocksResponse | list[Stock], status_code=status.HTTP_200_OK)
 def get_live_portfolio_valuation(
     portfolio_id: str,
     view: str | None = None,
