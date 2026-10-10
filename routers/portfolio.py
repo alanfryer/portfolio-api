@@ -7,7 +7,7 @@ from services.database_service import DatabaseService
 from services.portfolio_service import PortfolioService
 
 logger = logging.getLogger("portfolio_app")
-router = APIRouter(prefix="/v1/portfolio", tags=["Portfolio Management"])
+router = APIRouter(prefix="/v1/portfolios", tags=["Portfolio Management"])
 
 def get_db_service() -> DatabaseService:
     return DatabaseService()
@@ -48,7 +48,7 @@ def get_live_portfolio_valuation(
     
     return db.get_portfolio(portfolio_id)
     
-@router.get("/{portfolio_id}/{symbol}", response_model=StockResponse | StockBase, status_code=status.HTTP_200_OK)
+@router.get("/{portfolio_id}/stocks/{symbol}", response_model=StockResponse | StockBase, response_model_exclude_unset=True, status_code=status.HTTP_200_OK)
 def get_stock(
     portfolio_id: str,
     symbol: str,
@@ -89,7 +89,7 @@ def get_stock(
     return stock
 
 
-@router.post("/{portfolio_id}", response_model=Stock, status_code=status.HTTP_201_CREATED)
+@router.post("/{portfolio_id}/stocks", response_model=Stock, status_code=status.HTTP_201_CREATED)
 def add_stock_to_portfolio(
     stock: Stock,
     portfolio_id: str,    
@@ -113,7 +113,7 @@ def add_stock_to_portfolio(
     return stock
 
 
-@router.put("/{portfolio_id}/{symbol}", response_model=StockUpdateInput, status_code=status.HTTP_200_OK)
+@router.put("/{portfolio_id}/stocks/{symbol}", response_model=StockUpdateInput, response_model_exclude_unset=True, status_code=status.HTTP_200_OK)
 def update_portfolio_stock(
     portfolio_id: str,
     symbol: str,
@@ -136,7 +136,7 @@ def update_portfolio_stock(
     return update_data
 
 
-@router.delete("/{portfolio_id}/{symbol}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{portfolio_id}/stocks/{symbol}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_portfolio_stock(
     portfolio_id: str,
     symbol: str,
