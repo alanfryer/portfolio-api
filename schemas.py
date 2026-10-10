@@ -69,3 +69,12 @@ class StockUpdateInput(BaseModel):
 
 class UserUpdateInput(BaseModel):
     password: SecretStr
+    
+    
+class Portfolio(BaseModel):
+    id: str
+    name: str
+    username: EmailStr
+    
+class Portfolios(BaseModel):
+    portfolios: list[Portfolio]

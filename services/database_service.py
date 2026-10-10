@@ -3,7 +3,7 @@ import logging
 import bcrypt
 from fastapi import HTTPException, status
 from pydantic import SecretStr 
-from schemas import Stock, User, StockBase, StockUpdateInput, UserUpdateInput
+from schemas import Portfolio, Stock, User, StockBase, StockUpdateInput, UserUpdateInput
 
 logger = logging.getLogger("portfolio_app")
 
@@ -49,7 +49,64 @@ class DatabaseService:
             )
     
     # --- PORTFOLIO OPERATIONS ---
-    def get_portfolio(self, portfolio_id: str) -> list[StockBase]:
+    def get_portfolios(self) -> list[Portfolio]:
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT id, name, username, created_at FROM portfolios;",
+                )
+                rows = cursor.fetchall()
+                return [dict(row) for row in rows]
+                
+        except sqlite3.Error as e:
+            self._handle_db_error(f"Failed fetching the Portfolios.", e)
+
+    def get_portfolio(self, portfolio_id: str) -> dict | None:
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT id, name, username, created_at FROM portfolios WHERE id = ?;",
+                    (portfolio_id,),
+                )
+                row = cursor.fetchone()
+                return dict(row) if row else None
+        except sqlite3.Error as e:
+            self._handle_db_error(f"Failed fetching the Portfolio information for '{portfolio_id}'.", e)
+    
+    def add_portfolio(self, portfolio: Portfolio) -> None:
+        """Inserts Portfolio directly. Relies on higher-level verification for duplicates."""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    INSERT INTO portfolios (id, name, username)
+                    VALUES (?, ?, ?);
+                    """,
+                    (
+                        portfolio.id,
+                        portfolio.name,
+                        portfolio.username
+                    ),
+                )
+                conn.commit()
+ 
+        except sqlite3.Error as e:
+            self._handle_db_error(f"Database insertion problem for the Portfolio '{portfolio.id}'.", e)
+
+    def delete_portfolio(self, portfolio_id: str) -> None:
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM portfolios WHERE id = ?;", (portfolio_id,))
+
+                conn.commit()
+        except sqlite3.Error as e:
+            raise self._handle_db_error(f"Database deletion problem for the Portfolio '{portfolio_id}'.", e)
+    
+    def get_stocks(self, portfolio_id: str) -> list[StockBase]:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -61,7 +118,7 @@ class DatabaseService:
                 return [dict(row) for row in rows]
                 
         except sqlite3.Error as e:
-            self._handle_db_error(f"Failed fetching portfolio for {portfolio_id}", e)
+            self._handle_db_error(f"Failed fetching the Stocks for Portfolio '{portfolio_id}'", e)
 
     def get_stock(self, symbol: str, portfolio_id: str) -> dict | None:
         try:
@@ -74,7 +131,7 @@ class DatabaseService:
                 row = cursor.fetchone()
                 return dict(row) if row else None
         except sqlite3.Error as e:
-            self._handle_db_error(f"Failed fetching single stock information for {symbol} in the Portfolio for {portfolio_id}", e)
+            self._handle_db_error(f"Failed fetching the Stock information for '{symbol}' in the Portfolio '{portfolio_id}'", e)
 
     def add_stock(self, stock: Stock, portfolio_id: str) -> None:
         """Inserts stock configurations directly. Relies on higher-level verification for duplicates."""
@@ -93,8 +150,7 @@ class DatabaseService:
                         stock.exchange,
                         stock.currency.upper().strip(),
                         stock.owned,
-                        stock.cost,
-
+                        stock.cost
                     ),
                 )
                 conn.commit()
@@ -220,3 +276,4 @@ class DatabaseService:
                 return cursor.fetchone() is not None
         except sqlite3.Error:
             return False
+

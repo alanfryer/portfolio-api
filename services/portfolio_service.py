@@ -110,7 +110,7 @@ class PortfolioService:
 
     def get_portfolio_valuation(self, portfolio_id: str) -> StocksResponse | None:
         """Aggregates performance cross-checks across all active positions."""
-        stocks = self.database_service.get_portfolio(portfolio_id)
+        stocks = self.database_service.get_stocks(portfolio_id)
 
         if not stocks:
             return None

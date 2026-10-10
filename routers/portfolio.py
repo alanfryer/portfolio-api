@@ -1,7 +1,7 @@
 import logging
-from fastapi import APIRouter, status, Depends, Response, HTTPException
-from schemas import Stock, StockBase, StockUpdateInput, StockResponse, StocksResponse
-
+from fastapi import APIRouter, status, Depends, HTTPException
+from schemas import Portfolio, Portfolios, Stock, StockBase, StockUpdateInput, StockResponse, StocksResponse
+from services.authorization_service import authenticate
 from services.authorization_service import authorize
 from services.database_service import DatabaseService
 from services.portfolio_service import PortfolioService
@@ -19,6 +19,60 @@ def get_portfolio_service(
 
 
 # --- LIVE PERFORMANCE ROUTES ---
+@router.get("/", response_model=Portfolios, response_model_exclude_unset=True, status_code=status.HTTP_200_OK)
+def get_portfolios(
+    db: DatabaseService = Depends(get_db_service),
+    authenticated: dict = Depends(authorize),
+):
+    return db.get_portfolios()
+
+@router.get("/{portfolio_id}", response_model=Portfolio, response_model_exclude_unset=True, status_code=status.HTTP_200_OK)
+def get_portfolio(
+    portfolio_id: str,
+    db: DatabaseService = Depends(get_db_service),
+    authenticated: dict = Depends(authorize),
+):
+    return db.get_portfolio(portfolio_id)
+
+@router.post("/", response_model=Portfolio, status_code=status.HTTP_201_CREATED)
+def add_portfolio(
+    portfolio: Portfolio,
+    db: DatabaseService = Depends(get_db_service),
+    authenticated: dict = Depends(authorize),
+   
+):
+    portfolio_id = portfolio.id
+
+    existing_portfolio = db.get_portfolio(portfolio_id)
+
+    if existing_portfolio:
+        # Fixed Status Code: 409 Conflict accurately represents resource duplication collisions
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Portfolio '{portfolio_id}' already exists. Use PUT to modify it."
+        )
+
+    db.add_portfolio(portfolio)
+    return portfolio
+
+@router.delete("/{portfolio_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_portfolio(
+    portfolio_id: str,
+    db: DatabaseService = Depends(get_db_service),
+    authenticated: dict = Depends(authenticate),  
+):
+    portfolio = db.get_portfolio(portfolio_id)
+
+    if not portfolio:        
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"The Portfolio '{portfolio_id}' does not exist'."
+        )
+
+    db.delete_portfolio(portfolio_id)
+    logger.info(f"Successfully deleted Portfolio '{portfolio_id}'.")
+    return None
+
 @router.get("/{portfolio_id}/stocks", response_model=StocksResponse | list[Stock], status_code=status.HTTP_200_OK)
 def get_live_portfolio_valuation(
     portfolio_id: str,
@@ -32,7 +86,7 @@ def get_live_portfolio_valuation(
         try:
             valuation_data = portfolio.get_portfolio_valuation(portfolio_id)
         except Exception as e:
-            logger.error(f"Valuation service failed for user {portfolio_id}: {str(e)}")
+            logger.error(f"The Valuation service failed for user '{portfolio_id}'. {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY, 
                 detail="Failed to retrieve real-time external valuation metrics."
@@ -46,7 +100,7 @@ def get_live_portfolio_valuation(
             )
         return valuation_data
     
-    return db.get_portfolio(portfolio_id)
+    return db.get_stocks(portfolio_id)
     
 @router.get("/{portfolio_id}/stocks/{symbol}", response_model=StockResponse | StockBase, response_model_exclude_unset=True, status_code=status.HTTP_200_OK)
 def get_stock(
