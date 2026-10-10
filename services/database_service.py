@@ -105,7 +105,7 @@ class DatabaseService:
                 conn.commit()
         except sqlite3.Error as e:
             raise self._handle_db_error(f"Database deletion problem for the Portfolio '{portfolio_id}'.", e)
-    
+
     def get_stocks(self, portfolio_id: str) -> list[StockBase]:
         try:
             with self._get_connection() as conn:

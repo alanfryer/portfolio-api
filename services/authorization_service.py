@@ -188,7 +188,7 @@ class AuthorizationService:
             if not self.database_service.verify_portfolio_ownership(user, portfolio_id):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Access to the Portfolio '{portfolio_id}' is not allowed by the user '{user}'."
+                    detail=f"Could not verify the ownership of the Portfolio. No record in the portfolio table for Id '{portfolio_id}' and User '{user}'."
                )
             
         logger.info(f"Successfully authenticated structural ownership: {authenticated_user}")
