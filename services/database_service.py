@@ -224,7 +224,7 @@ class DatabaseService:
             raise self._handle_db_error(f"Failed to delete the User '{username}'.", e)
 
 
-    def get_user(self, username: str) -> dict | bool:
+    def get_user(self, username: str) -> dict | None:
         """Validates credentials against stored SQLite records."""
         with self._get_connection() as conn:
             conn.row_factory = sqlite3.Row  # Returns results as dictionary-like objects
@@ -233,7 +233,7 @@ class DatabaseService:
             user = cursor.fetchone()
 
         if not user:
-            return False
+            return None
 
         return {
             "username": user["username"],

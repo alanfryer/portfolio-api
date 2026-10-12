@@ -78,7 +78,7 @@ def update_user_password(
     logger.info(f"Password for User '{username}' updated.")
 
 
-@router.post("/tokena")
+@router.post("/token")
 async def get_jwt_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     auth: AuthorizationService = Depends(get_auth_service),
@@ -91,7 +91,7 @@ async def get_jwt_token(
     password = SecretStr(form_data.password)
     return auth.create_access_token(form_data.username, password)
 
-@router.post("/token", status_code=status.HTTP_200_OK)
+@router.post("/token1", status_code=status.HTTP_200_OK)
 def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     auth_service: AuthorizationService = Depends(get_auth_service)

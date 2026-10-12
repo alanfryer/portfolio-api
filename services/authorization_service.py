@@ -20,6 +20,8 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 # Setup standard structured logging instead of using print()
 logger = logging.getLogger("portfolio_app")
 
+# OAuth2 scheme setup for FastAPI documentation dependency injection
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 class AuthorizationService:
     def __init__(self):
@@ -47,23 +49,30 @@ class AuthorizationService:
             logger.error(f"Password verification runtime error: {e}")
             return False
 
-    def create_access_token(self, username: str, password: SecretStr) -> dict:
+    def create_access_token(self, username: str, password: str) -> str:
         """Generates a secure JSON Web Token."""
         user = self.authenticate_user(username, password)
 
         if not user:
             raise self.create_auth_exception(
-                detail="Failed to create JWT Token, incorrect username or password entered.",
-                scheme="Bearer",
+                detail="Failed to create JWT Token, incorrect username or password entered."
             )
 
-        expire = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
+        # 1. Calculate future expiration datetime
+        expire_datetime = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
             minutes=ACCESS_TOKEN_EXPIRE_MINUTES
         )
-        to_encode = {"sub": user["username"], "scopes": user["scopes"], "exp": expire}
-        token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-        return {"access_token": token, "token_type": "bearer"}
+        
+        # 2. Convert the datetime to a Unix timestamp integer for PyJWT
+        expire_timestamp = int(expire_datetime.timestamp())
+        
+        to_encode = {
+            "sub": username, 
+            "exp": expire_timestamp  # PyJWT requires an int timestamp here
+        }
+        
+        encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+        return encoded_jwt
 
     async def authenticate(self, request: Request) -> dict:
         """

@@ -2,18 +2,31 @@ import pytest
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.testclient import TestClient
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock
 
 # Import your router and dependencies
 # Adjust these import paths based on your actual project structure
 from routers.auth import router, get_db_service, get_auth_service
 from services.authorization_service import authorize
-from schemas import User, UserUpdateInput
 
 # Setup a dummy FastAPI app to test the router in isolation
 app = FastAPI()
 app.include_router(router)
-
+@pytest.fixture
+def client(mock_db):
+    """Fixture to provide a TestClient with overridden dependencies."""
+    # Override the DB dependency to return our mock
+    app.dependency_overrides[get_db_service] = lambda: mock_db
+    
+        # Default override for authorize (simulating a valid authenticated user)
+    app.dependency_overrides[authorize] = lambda: {"username": "admin", "scopes": []}
+    
+    with TestClient(app) as test_client:
+        yield test_client
+        
+    # Clear overrides after each test case
+    app.dependency_overrides.clear()
+    
 @pytest.fixture
 def mock_db():
     """Fixture to provide a mocked DatabaseService."""
@@ -26,20 +39,6 @@ def mock_auth_service():
     # If create_access_token is async, mock it using AsyncMock
     mock.create_access_token = AsyncMock() 
     return mock
-@pytest.fixture
-def client(mock_db):
-    """Fixture to provide a TestClient with overridden dependencies."""
-    # Override the DB dependency to return our mock
-    app.dependency_overrides[get_db_service] = lambda: mock_db
-    
-    # Default override for authorize (simulating a valid authenticated user)
-    app.dependency_overrides[authorize] = lambda: {"username": "admin", "scopes": []}
-    
-    with TestClient(app) as test_client:
-        yield test_client
-        
-    # Clear overrides after each test case
-    app.dependency_overrides.clear()
 
 
 # --- TEST CASES FOR: POST /v1/users (add_user) ---
@@ -176,5 +175,3 @@ def test_update_password_user_not_found(client, mock_db):
     assert response.status_code == status.HTTP_404_NOT_FOUND
     assert response.json()["detail"] == f"The user '{username_to_update}' does not exist."
     mock_db.update_user_password.assert_not_called()
-    
-
