@@ -1,7 +1,7 @@
 import sqlite3
 import pytest
 from fastapi import HTTPException, status
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 from unittest.mock import MagicMock
 
 # Replace with your actual module import paths
@@ -194,7 +194,7 @@ def test_delete_stock_workflow(db_service):
 def test_register_user_success(db_service):
     """Verifies that user data inserts cleanly using service method hooks."""
     # Pass a value for the required 'scopes' argument (adjust type as needed, e.g., list or string)
-    result = db_service.register_user("tommyshelby@peakyblinders.com", SecretStr("mypassword123"), ["add"])
+    result = db_service.register_user("tommyshelby@peakyblinders.com", SecretStr("mypassword123"), ["add", "update","delete","view"])
     print(result)
     assert result.username == "tommyshelby@peakyblinders.com"
 
@@ -209,19 +209,28 @@ def test_register_user_success(db_service):
 def test_register_user_duplicate_conflict(db_service):
     """Verifies that registering an existing user triggers a 409 error constraint."""
     # Pass a value for the required 'scopes' argument here as well
-    db_service.register_user("pollyshelby@peakyblinders.com", SecretStr("passwordA"), ["add"])
+    db_service.register_user("pollyshelby@peakyblinders.com", SecretStr("passwordA"), ["add", "update","delete","view"])
 
     # Assert that trying to reuse the primary key raises a 409 conflict exception
     with pytest.raises(HTTPException) as exc_info:
-        db_service.register_user("pollyshelby@peakyblinders.com", SecretStr("passwordB"), ["add"])
+        db_service.register_user("pollyshelby@peakyblinders.com", SecretStr("passwordB"), ["add", "update","delete","view"])
 
     
     assert "UNIQUE constraint" in exc_info.value.detail
 
+def test_register_user_invalid_scope(db_service):
+    """Verifies that registering an existing user triggers a 409 error constraint."""
+
+    # Assert that trying to reuse the primary key raises a 409 conflict exception
+    with pytest.raises(ValidationError) as exc_info:
+        db_service.register_user("bad_scope@peakyblinders.com", SecretStr("passwordA"), ["bad_scope"])
+
+    
+    assert "Invalid scope(s) found" in str(exc_info.value)
 
 def test_update_user_password_workflow(db_service):
     """Verifies that changing a user password overwrites the database row value."""
-    db_service.register_user("tommyshelby@peakyblinders.com", SecretStr("initial_password"), ["add"])
+    db_service.register_user("tommyshelby@peakyblinders.com", SecretStr("initial_password"), ["add", "update","delete","view"])
     initial_record = db_service.get_user("tommyshelby@peakyblinders.com")
     initial_hash = initial_record["hashed_password"]
 
@@ -236,7 +245,7 @@ def test_update_user_password_workflow(db_service):
 
 def test_delete_user_workflow(db_service):
     """Verifies user entry removal cleans up associated portfolios via cascading constraints."""
-    db_service.register_user("alfredshelby@peakyblinders.com", SecretStr("pass123"), ["add"])
+    db_service.register_user("alfredshelby@peakyblinders.com", SecretStr("pass123"), ["add", "update","delete","view"])
     
     mock_portfolio = Portfolio(id="p-casc", name="Temporary", username="alfredshelby@peakyblinders.com")
     db_service.add_portfolio(mock_portfolio)
@@ -263,7 +272,7 @@ def test_get_portfolios_empty(db_service):
 def test_get_portfolios_multiple_records(db_service):
     """Verifies record collection parsing builds dictionary mappings accurately."""
     # Seed parent user first to accommodate active foreign keys
-    db_service.register_user("aliceshelby@peakyblinders.com", SecretStr("secure_pass"), ["add"])
+    db_service.register_user("aliceshelby@peakyblinders.com", SecretStr("secure_pass"), ["add", "update","delete","view"])
 
     portfolio_1 = Portfolio(id="p-alpha", name="Alpha Fund", username="aliceshelby@peakyblinders.com")
     portfolio_2 = Portfolio(id="p-beta", name="Beta Tech", username="aliceshelby@peakyblinders.com")
@@ -282,4 +291,61 @@ def test_get_portfolios_multiple_records(db_service):
 def test_delete_portfolio_not_found_silent_pass(db_service):
     """Verifies deleting a non-existent portfolio passes safely without throwing an exception."""
     db_service.delete_portfolio("non_existent_portfolio_id_999")
-    assert db_service.get_portfolio("non_existent_portfolio_id_999") is None    
+    assert db_service.get_portfolio("non_existent_portfolio_id_999") is None
+    
+# --- PORTFOLIO OWNERSHIP VERIFICATION TESTS ---
+
+def test_verify_portfolio_ownership_success(db_service):
+    """Verifies that ownership evaluates to True when username matches the portfolio."""
+    # 1. Arrange: Create a user and an associated portfolio record
+    db_service.register_user("owner_user@peakyblinders.com", SecretStr("password123"), ["add", "update","delete","view"])
+    mock_portfolio = Portfolio(id="p-owned-1", name="Growth Portfolio", username="owner_user@peakyblinders.com")
+    db_service.add_portfolio(mock_portfolio)
+
+    # 2. Act: Execute the security verification guard
+    is_owner = db_service.verify_portfolio_ownership(username="owner_user@peakyblinders.com", portfolio_id="p-owned-1")
+
+    # 3. Assert: Verify the security context successfully validates
+    assert is_owner is True
+
+
+def test_verify_portfolio_ownership_access_denied(db_service):
+    """Verifies that ownership evaluates to False when a different user tries to access the resource."""
+    # 1. Arrange: Seed a portfolio owned by one user
+    db_service.register_user("legitimate_owner@peakyblinders.com", SecretStr("password123"), ["add", "update","delete","view"])
+    mock_portfolio = Portfolio(id="p-secure-1", name="Secure Portfolio", username="legitimate_owner@peakyblinders.com")
+    db_service.add_portfolio(mock_portfolio)
+
+    # Register an secondary attacker/unauthorized account profile
+    db_service.register_user("malicious_user@peakyblinders.com", SecretStr("password456"), ["add", "update","delete","view"])
+
+    # 2. Act: Challenge ownership checking matching an incorrect user assignment
+    is_owner = db_service.verify_portfolio_ownership(username="malicious_user@peakyblinders.com", portfolio_id="p-secure-1")
+
+    # 3. Assert: The security guard must deny access
+    assert is_owner is False
+
+
+def test_verify_portfolio_ownership_non_existent_portfolio(db_service):
+    """Verifies that checking ownership on an invalid or missing portfolio ID returns False."""
+    db_service.register_user("some_user@peakyblinders.com", SecretStr("password123"), ["add", "update","delete","view"])
+
+    # Act & Assert: Check a random portfolio identifier string
+    is_owner = db_service.verify_portfolio_ownership(username="some_user@peakyblinders.com", portfolio_id="missing-portfolio-999")
+    assert is_owner is False
+
+
+def test_verify_portfolio_ownership_database_exception_fallback(db_service):
+    """Verifies that the try/except block catches database subsystem errors and fails safely by returning False."""
+    # Arrange: Force break the internal database connection engine execution loop
+    # We alter the method to raise a sqlite3 operational error when invoked
+    def break_query_execution():
+        raise sqlite3.OperationalError("Simulated infrastructure corruption event.")
+        
+    db_service._get_connection = break_query_execution
+
+    # Act: Challenge ownership verification when structural integrity is broken
+    is_owner = db_service.verify_portfolio_ownership(username="any_user@peakyblinders.com", portfolio_id="any_id")
+
+    # Assert: Must evaluate to False cleanly without bubbling up unhandled exceptions
+    assert is_owner is False
