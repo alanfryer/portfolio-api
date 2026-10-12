@@ -54,7 +54,17 @@ def update_user_password(
     authenticated: dict = Depends(authorize)
 ):
     """Update the Password for the Portfolio User."""
+    # 1. Verification: Only allow users to change their own password, or allow admins
+    current_user = authenticated.get("username")
+    user_scopes = authenticated.get("scopes", [])
+    
+    if current_user != username and "admin" not in user_scopes:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to update this user's password."
+        )
 
+    # 2. Check if target user exists        
     user = db.get_user(username)
     
     if not user:
@@ -62,12 +72,13 @@ def update_user_password(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"The user '{username}' does not exist."
         )
-    
-    db.update_user_password(username, update_data)
+        
+    # 3. Perform update action    
+    db.update_user_password(username, update_data.password.get_secret_value())
     logger.info(f"Password for User '{username}' updated.")
 
 
-@router.post("/token")
+@router.post("/tokena")
 async def get_jwt_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     auth: AuthorizationService = Depends(get_auth_service),
@@ -79,3 +90,25 @@ async def get_jwt_token(
     """
     password = SecretStr(form_data.password)
     return auth.create_access_token(form_data.username, password)
+
+@router.post("/token", status_code=status.HTTP_200_OK)
+def login_for_access_token(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    auth_service: AuthorizationService = Depends(get_auth_service)
+):
+    """Authenticate a User and issue a signed JWT Access Token."""
+    user = authenticate(form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        
+    scopes = form_data.scopes if form_data.scopes else user.get("scopes", [])
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = auth_service.create_access_token(
+        data={"sub": user["username"], "scopes": scopes},
+        expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}

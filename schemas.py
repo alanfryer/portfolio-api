@@ -1,5 +1,5 @@
 from typing import Annotated, List
-from pydantic import BaseModel, BeforeValidator, Field, EmailStr, SecretStr
+from pydantic import BaseModel, BeforeValidator, Field, EmailStr, SecretStr, ConfigDict
 # 1. Define allowed scopes
 ALLOWED_SCOPES = {"admin", "view", "add", "update", "delete"}
 
@@ -43,8 +43,7 @@ class StockBase(BaseModel):
 class Stock(StockBase):
     portfolio_id: str = Field(..., description="The parent portfolio identifier this asset belongs to")
 
-    class Config:
-        from_attributes = True  # Allows parsing SQLite Row objects directly
+    model_config = ConfigDict(from_attributes=True) 
 
 class StockResponse(Stock):
     date: str
