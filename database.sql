@@ -1,37 +1,31 @@
-CREATE TABLE IF NOT EXISTS "users" (
-    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
-    "username" VARCHAR NOT NULL,
-    "hashed_password" VARCHAR NOT NULL
+CREATE TABLE sqlite_sequence(name,seq);
+CREATE TABLE IF NOT EXISTS "stocks" (
+    symbol TEXT NOT NULL,
+    company TEXT,
+    exchange TEXT,
+    currency TEXT,
+    owned REAL,
+    cost REAL,
+    portfolio_id TEXT REFERENCES "porfolios"(id) ON DELETE CASCADE,
+    PRIMARY KEY (symbol, portfolio_id)
 );
-
--- Ensure usernames remain globally unique and lookups are fast
-CREATE UNIQUE INDEX IF NOT EXISTS "ix_users_username" ON "users" ("username");
-CREATE INDEX IF NOT EXISTS "ix_users_id" ON "users" ("id");
-
-
-CREATE TABLE IF NOT EXISTS "roles" (
-    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
-    "user_id" INTEGER NOT NULL,
-    "role_name" VARCHAR NOT NULL,
-    FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE,
+    hashed_password TEXT NOT NULL,
+    scopes TEXT NOT NULL DEFAULT 'user',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
-
--- Indexing for optimized relational lookups and joins
-CREATE INDEX IF NOT EXISTS "ix_roles_id" ON "roles" ("id");
-
--- Table Structure
-CREATE TABLE IF NOT EXISTS portfolio (
-    symbol TEXT PRIMARY KEY,
-    company TEXT NOT NULL,
-    exchange TEXT NOT NULL,
-    currency TEXT NOT NULL,
-    owned INTEGER NOT NULL,
-    cost REAL NOT NULL,
-    username TEXT NOT NULL
+CREATE TABLE IF NOT EXISTS "portfolios" (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    username TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(id) REFERENCES stocks(portfolio_id) ON DELETE CASCADE
 );
 
 -- Insert Statements
-INSERT INTO portfolio(symbol, company, exchange, currency, owned, cost) VALUES
+INSERT INTO stocks(symbol, company, exchange, currency, owned, cost) VALUES
 ('AZN.L', 'AstraZeneca plc', 'LSE', 'GBP', 62, 7378.22),
 ('BA.L', 'BAE Systems plc', 'LSE', 'GBP', 148, 2952.29),
 ('BARC.L', 'Barclays plc', 'LSE', 'GBP', 1533, 7745.54),
@@ -65,11 +59,6 @@ INSERT INTO portfolio(symbol, company, exchange, currency, owned, cost) VALUES
 ('ULVR.L', 'Unilever plc', 'LSE', 'GBP', 101, 4652.55);
 
 
-
-INSERT INTO portfolio (symbol, company, exchange, currency, owned, cost, username)
-SELECT symbol, company, exchange, currency, owned, cost, "alanfryer"
-FROM portfolio_bkp;
-
 BEGIN TRANSACTION;
 
 -- 2. Construct the new structural layout with your composite primary key
@@ -80,7 +69,7 @@ CREATE TABLE stocks_new (
     currency TEXT,
     owned REAL,
     cost REAL,
-    portfolio_id TEXT REFERENCES portfolios(id) ON DELETE CASCADE,
+    portfolio_id TEXT REFERENCES "porfolios"(id) ON DELETE CASCADE,
     PRIMARY KEY (symbol, portfolio_id)
 );
 
@@ -91,10 +80,10 @@ SELECT symbol, company, exchange, currency, owned, cost, portfolio_id
 FROM stocks;
 
 -- 4. Delete the legacy data structure
-DROP TABLE portfolio;
+DROP TABLE stocks;
 
 -- 5. Restore the original name to the new configuration
-ALTER TABLE portfolio_new RENAME TO portfolio;
+ALTER TABLE stocks_new RENAME TO stocks;
 
 -- 6. Lock in and finalize the updates
 COMMIT;

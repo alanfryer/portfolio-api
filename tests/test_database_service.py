@@ -28,7 +28,7 @@ def db_service():
             company TEXT NOT NULL,
             exchange TEXT NOT NULL,
             currency TEXT NOT NULL,
-            owned INTEGER NOT NULL,
+            owned REAL NOT NULL,
             cost REAL NOT NULL,
             PRIMARY KEY (symbol, portfolio_id),
             FOREIGN KEY (portfolio_id) REFERENCES portfolios(id) ON DELETE CASCADE
@@ -36,10 +36,11 @@ def db_service():
     """)
     cursor.execute("""
         CREATE TABLE users (
-            username TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
             hashed_password TEXT NOT NULL,
-            scopes str TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            scopes TEXT NOT NULL DEFAULT 'user',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
     """)
     cursor.execute("""
@@ -48,7 +49,7 @@ def db_service():
             name TEXT NOT NULL,
             username TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (username) REFERENCES users(username) ON DELETE CASCADE
+            FOREIGN KEY(id) REFERENCES stocks(portfolio_id) ON DELETE CASCADE
         );
     """)    
     shared_connection.commit()

@@ -2,7 +2,6 @@ import datetime
 import logging
 import yfinance as yf
 from fastapi import HTTPException, status
-from exceptions import StockNotFoundException, StockInfoNotFoundException, PortfolioException
 from schemas import StockResponse, StocksResponse
 from services.database_service import DatabaseService
 from services.exchange_rate_service import ExchangeRateService
