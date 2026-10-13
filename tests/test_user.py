@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, AsyncMock
 
 # Import your router and dependencies
 # Adjust these import paths based on your actual project structure
-from routers.auth import router, get_db_service, get_auth_service
+from routers.users import router, get_db_service, get_auth_service
 from services.authorization_service import authorize
 
 # Setup a dummy FastAPI app to test the router in isolation

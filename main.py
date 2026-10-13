@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi import FastAPI
 from services.authorization_service import AuthorizationService
-from routers import exchange_rates, portfolio, auth
+from routers import exchange_rates, portfolio, users
 from exceptions import StockNotFoundException, StockInfoNotFoundException, PortfolioException
 from services.database_service import DatabaseService
 
@@ -78,7 +78,7 @@ async def portfolio_exception_handler(request: Request, exc: PortfolioException)
 # ==========================================
 
 # 1. Include Auth Router (Kept completely PUBLIC so users can sign up and login)
-app.include_router(auth.router)
+app.include_router(users.router)
 
 # 2. Include Data Routers (Fully PROTECTED using our resolved authentication helper)
 app.include_router(exchange_rates.router) #, dependencies=[Depends(auth_dependency)])
