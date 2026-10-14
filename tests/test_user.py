@@ -2,25 +2,27 @@ import pytest
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 from unittest.mock import MagicMock, AsyncMock
 
 # Import your router and dependencies
 # Adjust these import paths based on your actual project structure
 from routers.users import router, get_db_service, get_auth_service
-from services.authorization_service import authorize
+from services.authorization_service import authorize, authenticate, AuthorizationService
+from services.database_service import DatabaseService
 
 # Setup a dummy FastAPI app to test the router in isolation
 app = FastAPI()
 app.include_router(router)
 @pytest.fixture
-def client(mock_db):
+def client(mock_db, mock_auth_service):
     """Fixture to provide a TestClient with overridden dependencies."""
     # Override the DB dependency to return our mock
     app.dependency_overrides[get_db_service] = lambda: mock_db
-    
+    app.dependency_overrides[get_auth_service] = lambda: mock_auth_service    
         # Default override for authorize (simulating a valid authenticated user)
     app.dependency_overrides[authorize] = lambda: {"username": "admin", "scopes": []}
-    
+    app.dependency_overrides[authenticate] = lambda: {"username": "admin", "scopes": []}
     with TestClient(app) as test_client:
         yield test_client
         
@@ -37,10 +39,28 @@ def mock_auth_service():
     """Fixture to provide a mocked AuthorizationService."""
     mock = MagicMock()
     # If create_access_token is async, mock it using AsyncMock
-    mock.create_access_token = AsyncMock() 
+    mock.create_access_token = MagicMock() 
     return mock
 
+def test_get_db_service_returns_database_service_instance():
+    """Verify that get_db_service initializes and returns a DatabaseService instance."""
+    # Act
+    db_service = get_db_service()
 
+    # Assert
+    assert db_service is not None
+    assert isinstance(db_service, DatabaseService)
+
+
+def test_get_auth_service_returns_authorization_service_instance():
+    """Verify that get_auth_service initializes and returns an AuthorizationService instance."""
+    # Act
+    auth_service = get_auth_service()
+
+    # Assert
+    assert auth_service is not None
+    assert isinstance(auth_service, AuthorizationService)
+    
 # --- TEST CASES FOR: POST /v1/users (add_user) ---
 
 def test_add_user_success(client, mock_db):
@@ -175,3 +195,57 @@ def test_update_password_user_not_found(client, mock_db):
     assert response.status_code == status.HTTP_404_NOT_FOUND
     assert response.json()["detail"] == f"The user '{username_to_update}' does not exist."
     mock_db.update_user_password.assert_not_called()
+# --- TEST CASES FOR: POST /v1/users/token (get_jwt_token) ---
+
+def test_get_jwt_token_success(client, mock_auth_service):
+    # Arrange
+    expected_token_data = {
+        "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock_token",
+        "token_type": "bearer"
+    }
+    mock_auth_service.create_access_token.return_value = expected_token_data
+
+    # OAuth2PasswordRequestForm expects form-url-encoded data via `data=`, NOT `json=`
+    form_payload = {
+        "username": "testuser@example.com",
+        "password": "supersecurepassword"
+    }
+
+    # Act
+    response = client.post("/v1/users/token", data=form_payload)
+
+    # Assert
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == expected_token_data
+    
+    # Verify create_access_token was called correctly with a SecretStr
+    mock_auth_service.create_access_token.assert_called_once()
+    called_args, called_kwargs = mock_auth_service.create_access_token.call_args
+    
+    assert called_args[0] == "testuser@example.com"
+    # Ensure it converted the raw password string into a Pydantic SecretStr object
+    assert isinstance(called_args[1], SecretStr)
+    assert called_args[1].get_secret_value() == "supersecurepassword"
+
+
+def test_get_jwt_token_authentication_dependency_failed(client, mock_auth_service):
+    # Arrange: Override the authenticate dependency to throw a credentials error
+    def mock_authenticate_fail():
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="Invalid username or password"
+        )
+    app.dependency_overrides[authenticate] = mock_authenticate_fail
+
+    form_payload = {
+        "username": "wronguser",
+        "password": "wrongpassword"
+    }
+
+    # Act
+    response = client.post("/v1/users/token", data=form_payload)
+
+    # Assert
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.json()["detail"] == "Invalid username or password"
+    mock_auth_service.create_access_token.assert_not_called()

@@ -90,25 +90,3 @@ async def get_jwt_token(
     """
     password = SecretStr(form_data.password)
     return auth.create_access_token(form_data.username, password)
-
-@router.post("/token1", status_code=status.HTTP_200_OK)
-def login_for_access_token(
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    auth_service: AuthorizationService = Depends(get_auth_service)
-):
-    """Authenticate a User and issue a signed JWT Access Token."""
-    user = authenticate(form_data.username, form_data.password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-        
-    scopes = form_data.scopes if form_data.scopes else user.get("scopes", [])
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = auth_service.create_access_token(
-        data={"sub": user["username"], "scopes": scopes},
-        expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
