@@ -150,6 +150,12 @@ def test_get_single_stock_success(mock_db):
     assert response.status_code == status.HTTP_200_OK
     mock_db.get_stock.assert_called_once_with("AAPL", "p1")
 
+def test_get_single_stock_not_found(mock_db):
+    mock_db.get_stock.return_value = None
+    response = client.get("/v1/portfolios/p1/stocks/aapl1")
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    mock_db.get_stock.assert_called_once_with("AAPL1", "p1")    
+
 def test_get_single_stock_valuation_success(mock_db, mock_portfolio_service):
     mock_portfolio_service.get_latest_price.return_value = StockResponse(**get_valid_stock_response_dict("AAPL", "p1"))
     response = client.get("/v1/portfolios/p1/stocks/aapl?view=valuation")
@@ -161,6 +167,18 @@ def test_get_single_stock_valuation_http_error(mock_db, mock_portfolio_service):
     response = client.get("/v1/portfolios/p1/stocks/aapl?view=valuation")
     assert response.status_code == status.HTTP_400_BAD_REQUEST
 
+def test_get_stock_valuation_price_missing(mock_portfolio_service):
+
+    # Arrange
+    mock_portfolio_service.get_latest_price.return_value = None
+
+    # Act
+    response = client.get("v1/portfolios/p1/stocks/tsla?view=valuation")
+
+    # Assert
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert "Real-time pricing unavailable" in response.json()["detail"]
+    
 def test_add_stock_to_portfolio_success(mock_db):
     mock_db.get_stock.return_value = None
     payload = get_valid_stock_dict("TSLA", "p1")
@@ -193,3 +211,7 @@ def test_delete_portfolio_stock_success(mock_db):
     assert response.status_code == status.HTTP_204_NO_CONTENT
     mock_db.delete_stock.assert_called_once_with("AAPL", "p1")
     
+def test_delete_portfolio_stock_not_found(mock_db):
+    mock_db.get_stock.return_value = None
+    response = client.delete("/v1/portfolios/p1/stocks/aapl")
+    assert response.status_code == status.HTTP_404_NOT_FOUND

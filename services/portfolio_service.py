@@ -54,6 +54,8 @@ class PortfolioService:
         try:
             open_price = float(data["Open"].iloc[-1])
             close_price = float(data["Close"].iloc[-1])
+
+            open_price = close_price if open_price == 0 else open_price
         except (IndexError, KeyError, ValueError) as e:
             logger.error(f"Malformed market structure matrix for {symbol_clean}: {str(e)}")
             raise HTTPException(
@@ -90,7 +92,7 @@ class PortfolioService:
             overall_change = close_value - cost
 
         stock_date = datetime.datetime.now(datetime.timezone.utc).strftime("%d-%m-%Y %H:%M")
-
+        
         return StockResponse(
             portfolio_id=portfolio_id,
             symbol=symbol_clean,
