@@ -1,6 +1,7 @@
 import sqlite3
 import logging
 import bcrypt
+from contextlib import contextmanager
 from fastapi import HTTPException, status
 from pydantic import SecretStr 
 from schemas import Portfolio, Stock, User, StockBase, StockUpdateInput, UserUpdateInput
@@ -11,8 +12,9 @@ class DatabaseService:
     def __init__(self):
         self.db_path = "/home/alanfryer/sqlite/portfolio.db"
         logger.info("Initialized the Database Service")
-
+    @contextmanager
     def _get_connection(self):
+        conn = None
         try:
             conn = sqlite3.connect(self.db_path)
             conn.row_factory = sqlite3.Row
@@ -23,6 +25,9 @@ class DatabaseService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Database subsystem connection failure."
             )
+        finally:
+            if conn:
+                conn.close()
 
     def _handle_db_error(self, contextual_msg: str, exception: Exception):
         """Centralized logging helper to abstract relational errors away from client payloads."""
@@ -94,7 +99,7 @@ class DatabaseService:
                 conn.commit()
  
         except sqlite3.Error as e:
-            self._handle_db_error(f"Database insertion problem for the Portfolio '{portfolio.id}'.", e)
+            raise self._handle_db_error(f"Database insertion problem for the Portfolio '{portfolio.id}'.", e)
 
     def delete_portfolio(self, portfolio_id: str) -> None:
         try:
@@ -161,7 +166,7 @@ class DatabaseService:
         fields = {k: v for k, v in update_data.model_dump().items() if v is not None}
         
         if not fields:
-            raise self._handle_db_error("No fields provided for update", e)
+            raise self._handle_db_error("No fields provided for update")
 
         if "currency" in fields:
             fields["currency"] = fields["currency"].upper()

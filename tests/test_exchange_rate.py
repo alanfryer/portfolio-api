@@ -3,54 +3,61 @@ from fastapi.testclient import TestClient
 from fastapi import APIRouter, FastAPI, status
 
 # Corrected imports matching your layout
-from routers.exchange_rates import router
+from routers.exchange_rates import router, get_exchange_rate_service
 from services.authorization_service import authenticate
 from services.exchange_rate_service import ExchangeRateService
-from routers.exchange_rates import router, get_exchange_rate_service
-# Create a clean FastAPI instance for testing
-app = FastAPI()
-app.include_router(router)
 
-client = TestClient(app)
+# -------------------------------------------------------------------------
+# Reusable Fixtures & Lifecycle Control
+# -------------------------------------------------------------------------
+
+@pytest.fixture
+def app_instance():
+    """Generates an isolated FastAPI instance specifically for this test module execution."""
+    app = FastAPI()
+    app.include_router(router)
+    return app
 
 
-# 1. Create a mock for the authentication dependency
-def mock_authenticate():
-    return {"username": "test_user"}
-
-
-# 2. Apply the dependency override before the tests run
 @pytest.fixture(autouse=True)
-def setup_dependencies():
-    # Override the authentication dependency to simulate a logged-in user
-    app.dependency_overrides[authenticate] = mock_authenticate
+def setup_dependencies(app_instance):
+    """Overrides the authentication dependency context to simulate a logged-in user."""
+    def mock_authenticate():
+        return {"username": "test_user"}
+        
+    app_instance.dependency_overrides[authenticate] = mock_authenticate
     yield
-    # Clean up overrides after the test finishes
-    app.dependency_overrides.clear()
-    
+    # Clean up overrides after the test finishes to avoid test leakage
+    app_instance.dependency_overrides.clear()
+
+
+@pytest.fixture
+def client(app_instance):
+    """
+    Provides a managed TestClient. Using a context manager inside a yield block
+    ensures all resources opened during test executions are safely closed.
+    """
+    with TestClient(app_instance) as test_client:
+        yield test_client
+
+# -------------------------------------------------------------------------
+# Tests
+# -------------------------------------------------------------------------
+
 def test_router_initialization():
-    """
-    Test that the APIRouter instance is initialized correctly.
-    """
-    # Assert
+    """Test that the APIRouter instance is initialized correctly."""
     assert isinstance(router, APIRouter)
 
 
 def test_get_exchange_rate_service_provider():
-    """
-    Test that the dependency injection factory function instantiates 
-    and returns a valid instance of ExchangeRateService.
-    """
-    # Act
+    """Test that the dependency injection factory function instantiates a valid service."""
     service_instance = get_exchange_rate_service()
-
-    # Assert
     assert service_instance is not None
     assert isinstance(service_instance, ExchangeRateService)
-def test_get_exchange_rates_success(mocker):
-    """
-    Test a successful request to fetch exchange rates.
-    """
+
+
+def test_get_exchange_rates_success(mocker, client):
+    """Test a successful request to fetch exchange rates."""
     # Arrange
     currency = "USD"
     mock_response_data = {
@@ -58,7 +65,7 @@ def test_get_exchange_rates_success(mocker):
         "rates": {"EUR": 0.85, "GBP": 0.75}
     }
     
-    # FIX: Patch where it is imported inside the ROUTER file to avoid module lookup bugs
+    # Patch where it is imported inside the service file
     mock_service = mocker.patch(
         'services.exchange_rate_service.ExchangeRateService.get_exchange_rates', 
         return_value=mock_response_data
@@ -73,15 +80,12 @@ def test_get_exchange_rates_success(mocker):
     mock_service.assert_called_once_with(currency)
 
 
-def test_get_exchange_rates_not_found(mocker):
-    """
-    Test the endpoint behavior when the service returns an error or failure response.
-    """
+def test_get_exchange_rates_not_found(mocker, client):
+    """Test the endpoint behavior when the service returns an error response."""
     # Arrange
     currency = "INVALID"
     mock_error_data = {"error": "Currency symbol not supported"}
     
-    # FIX: Patch where it is imported inside the ROUTER file
     mock_service = mocker.patch(
         'services.exchange_rate_service.ExchangeRateService.get_exchange_rates', 
         return_value=mock_error_data
@@ -95,16 +99,14 @@ def test_get_exchange_rates_not_found(mocker):
     mock_service.assert_called_once_with(currency)
 
 
-def test_get_exchange_rates_unauthenticated():
-    """
-    Test that the route fails if the user authentication fails.
-    """
-    # Arrange: Remove the successful auth override and simulate an auth error
+def test_get_exchange_rates_unauthenticated(app_instance, client):
+    """Test that the route fails if the user authentication fails."""
+    # Arrange: Override with a failing auth configuration
     def mock_authenticate_fail():
         from fastapi import HTTPException
         raise HTTPException(status_code=401, detail="Invalid credentials")
         
-    app.dependency_overrides[authenticate] = mock_authenticate_fail
+    app_instance.dependency_overrides[authenticate] = mock_authenticate_fail
 
     # Act
     response = client.get("/v1/exchange/rates/USD")

@@ -2,7 +2,7 @@ import sqlite3
 import pytest
 from fastapi import HTTPException, status
 from pydantic import SecretStr, ValidationError
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 # Replace with your actual module import paths
 from services.database_service import DatabaseService
@@ -350,3 +350,36 @@ def test_verify_portfolio_ownership_database_exception_fallback(db_service):
 
     # Assert: Must evaluate to False cleanly without bubbling up unhandled exceptions
     assert is_owner is False
+    
+def test_add_portfolio_sqlite_error(db_service):
+    """
+    Test that a sqlite3.Error during add_portfolio correctly triggers 
+    a 409 HTTPException via the internal _handle_db_error helper.
+    """
+    # 1. Arrange: Point to a real in-memory SQLite workspace instance
+    db_service.db_path = ":memory:"
+    
+    # 2. Intentionally DO NOT create the 'portfolios' database table.
+    # When add_portfolio tries to run an INSERT on a table that doesn't exist,
+    # the real Python sqlite3 engine will throw a genuine sqlite3.OperationalError.
+    def get_real_in_memory_connection():
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    db_service._get_connection = get_real_in_memory_connection
+
+    # 3. Form a valid Portfolio data entity payload
+    mock_portfolio = Portfolio(
+        id="portfolio_error_999",
+        name="Crisis Asset Management Portfolio",
+        username="pollyshelby@peakyblinders.com"
+    )
+
+    # 4. Act & Assert: Verify that the real SQLite error bubbles out as a 409 Conflict
+    with pytest.raises(HTTPException) as exc_info:
+        db_service.add_portfolio(mock_portfolio)
+
+    assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+    assert "Database insertion problem for the Portfolio 'portfolio_error_999'." in exc_info.value.detail
+    assert "no such table: portfolios" in exc_info.value.detail
