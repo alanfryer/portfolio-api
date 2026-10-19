@@ -14,6 +14,11 @@ from services.database_service import DatabaseService
 
 # Configuration (Keep environment variables in production)
 SECRET_KEY = os.getenv("SECRET_KEY")
+# Enforce secure configuration initialization limits
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("CRITICAL ENVIRONMENT CONFIGURATION ERROR: 'SECRET_KEY' environment variable is missing.")
+
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 
@@ -24,9 +29,9 @@ logger = logging.getLogger("portfolio_app")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 class AuthorizationService:
-    def __init__(self):
-        self.database_service = DatabaseService()
-        logger.info("Initialized the Authorization Service")
+    def __init__(self, database_service: DatabaseService = None):
+        # Allow dependency injection to prevent resource instantiation leaks
+        self.database_service = database_service or DatabaseService()
 
     @staticmethod
     def get_password_hash(password: SecretStr) -> str:
@@ -49,30 +54,26 @@ class AuthorizationService:
             logger.error(f"Password verification runtime error: {e}")
             return False
 
-    def create_access_token(self, username: str, password: str) -> str:
-        """Generates a secure JSON Web Token."""
+    def create_access_token(self, username: str, password: SecretStr) -> str:
+        """Generates a secure JSON Web Token after verifying user credentials."""
         user = self.authenticate_user(username, password)
-
         if not user:
             raise self.create_auth_exception(
                 detail="Failed to create JWT Token, incorrect username or password entered."
             )
 
-        # 1. Calculate future expiration datetime
         expire_datetime = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
             minutes=ACCESS_TOKEN_EXPIRE_MINUTES
         )
-        
-        # 2. Convert the datetime to a Unix timestamp integer for PyJWT
         expire_timestamp = int(expire_datetime.timestamp())
         
         to_encode = {
             "sub": username, 
-            "exp": expire_timestamp  # PyJWT requires an int timestamp here
+            "exp": expire_timestamp,
+            "scopes": user.get("scopes", [])
         }
         
-        encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-        return encoded_jwt
+        return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
     async def authenticate(self, request: Request) -> dict:
         """

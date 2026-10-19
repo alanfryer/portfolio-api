@@ -18,7 +18,7 @@ class DatabaseService:
         try:
             conn = sqlite3.connect(self.db_path)
             conn.row_factory = sqlite3.Row
-            return conn
+            yield conn
         except sqlite3.OperationalError as e:
             logger.critical(f"Database connection engine failed at target path: {self.db_path}. Error: {e}")
             raise HTTPException(

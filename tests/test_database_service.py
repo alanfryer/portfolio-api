@@ -78,11 +78,15 @@ def test_get_connection_operational_error():
     service = DatabaseService()
     # Provide an illegal directory path to trigger a native operational failure
     service.db_path = "/invalid_directory/non_existent_file.db"
-    
+
+    # Enforce that the HTTPException is thrown when evaluating the generator context
     with pytest.raises(HTTPException) as exc_info:
-        service._get_connection()
-        
-    assert exc_info.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        with service._get_connection() as conn:
+            # We must enter the context block to force the generator to run its code
+            pass
+
+    # Optional: Verify that it accurately returns a 500 Internal Server Error
+    assert exc_info.value.status_code == 500
     assert "Database subsystem connection failure." in exc_info.value.detail
 
 
