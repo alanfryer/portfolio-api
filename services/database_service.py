@@ -3,7 +3,7 @@ import logging
 import bcrypt
 from contextlib import contextmanager
 from fastapi import HTTPException, status
-from pydantic import SecretStr 
+from pydantic import SecretStr, ValidationError
 from schemas import Portfolio, Stock, User, StockBase, StockUpdateInput, UserUpdateInput
 
 logger = logging.getLogger("portfolio_app")
@@ -65,7 +65,7 @@ class DatabaseService:
                 return [dict(row) for row in rows]
                 
         except sqlite3.Error as e:
-            self._handle_db_error(f"Failed fetching the Portfolios.", e)
+           self._handle_db_error(f"Failed fetching the Portfolios.", e)
 
     def get_portfolio(self, portfolio_id: str) -> dict | None:
         try:
@@ -99,7 +99,7 @@ class DatabaseService:
                 conn.commit()
  
         except sqlite3.Error as e:
-            raise self._handle_db_error(f"Database insertion problem for the Portfolio '{portfolio.id}'.", e)
+            self._handle_db_error(f"Database insertion problem for the Portfolio '{portfolio.id}'.", e)
 
     def delete_portfolio(self, portfolio_id: str) -> None:
         try:
@@ -109,7 +109,7 @@ class DatabaseService:
 
                 conn.commit()
         except sqlite3.Error as e:
-            raise self._handle_db_error(f"Database deletion problem for the Portfolio '{portfolio_id}'.", e)
+            self._handle_db_error(f"Database deletion problem for the Portfolio '{portfolio_id}'.", e)
 
     def get_stocks(self, portfolio_id: str) -> list[StockBase]:
         try:
@@ -166,7 +166,10 @@ class DatabaseService:
         fields = {k: v for k, v in update_data.model_dump().items() if v is not None}
         
         if not fields:
-            raise self._handle_db_error("No fields provided for update")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail= "No fields provided for update"
+            )
 
         if "currency" in fields:
             fields["currency"] = fields["currency"].upper()
@@ -194,7 +197,7 @@ class DatabaseService:
 
                 conn.commit()
         except sqlite3.Error as e:
-            raise self._handle_db_error(f"Database removal task failed for stock={symbol}, portfolio={portfolio_id}", e)
+            self._handle_db_error(f"Database removal task failed for stock={symbol}, portfolio={portfolio_id}", e)
 
 
     # --- USER OPERATIONS ---
@@ -214,7 +217,7 @@ class DatabaseService:
                 conn.commit()
                 return User(username=username, password=password, scopes=scopes)
         except sqlite3.IntegrityError as e:
-            raise self._handle_db_error(f"The User '{username}' is already registered.", e)
+            self._handle_db_error(f"The User '{username}' is already registered.", e)
 
     def delete_user(self, username: str) -> None:
         """Deletes a user from SQLite."""
@@ -226,7 +229,7 @@ class DatabaseService:
                 conn.commit()
                 
         except sqlite3.Error as e:
-            raise self._handle_db_error(f"Failed to delete the User '{username}'.", e)
+            self._handle_db_error(f"Failed to delete the User '{username}'.", e)
 
 
     def get_user(self, username: str) -> dict | None:
@@ -250,13 +253,11 @@ class DatabaseService:
 
     def update_user_password(self, username: str, update_data: UserUpdateInput) -> dict:
         """Hashes and updates a user's password securely in SQLite."""
-        # Ensure password is provided in the update payload
-        if not update_data.password:
-            raise self._handle_db_error(f"Password field is required for update. the User '{username}'.", e)
-
-        hashed_password = self._get_password_hash(update_data.password)
 
         try:
+            
+            hashed_password = self._get_password_hash(update_data.password)
+            
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
@@ -265,9 +266,14 @@ class DatabaseService:
                 )
 
                 conn.commit()
-
+        except ValidationError as e:
+            print(f"-------------------{e}")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail= f"Password field is required for update. the User '{username}'."
+            )
         except sqlite3.Error as e:
-            raise self._handle_db_error(f"Failed to update password for the User '{username}'.", e)
+            self._handle_db_error(f"Failed to update password for the User '{username}'.", e)
         
     def verify_portfolio_ownership(self, username: str, portfolio_id: str) -> bool:
         """Security guard checking if the token user owns the portfolio resource."""

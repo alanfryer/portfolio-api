@@ -241,3 +241,43 @@ def test_get_portfolio_valuation_unhandled_exception_bypass(portfolio_service, m
         assert result is not None
         assert result.portfolio_daily_position == 5.00
         assert len(result.stocks) == 1
+
+def test_get_latest_price_exchange_service_raised_exception(portfolio_service, mock_db_service):
+    """Test that unexpected errors from ExchangeRateService are handled safely by the try/except block."""
+    # Arrange
+    ticker_symbol = "AAPL"
+    portfolio_id = "user_123"
+    currency = "JPY"
+
+    mock_db_service.get_stock.return_value = {
+        "company": "Apple Inc.",
+        "exchange": "NASDAQ",
+        "currency": currency,
+        "owned": 10,
+        "cost": 150.0
+    }
+
+    # Standard data matrix format to satisfy data.empty checks
+    mock_df = pd.DataFrame(
+        {
+            "Open": [174.00],
+            "Close": [175.50]
+        }, 
+        index=[pd.Timestamp.now()]
+    )
+
+    with patch('yfinance.Ticker') as mock_ticker:
+        mock_ticker.return_value.history.return_value = mock_df
+        
+        # TARGETED FIX: Target the exact method signature being executed in production
+        portfolio_service.exchange_rate_service.get_exchange_rate = MagicMock(
+            side_effect=Exception("Database connection timeout fetching rates")
+        )
+
+        # Act & Assert
+        with pytest.raises(HTTPException) as exc_info:
+            portfolio_service.get_latest_price(ticker_symbol, portfolio_id)
+
+        # Assertions
+        assert exc_info.value.status_code == status.HTTP_502_BAD_GATEWAY
+        assert f"Currency exchange rate cross-matrix matching failed for {currency}." in exc_info.value.detail

@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 from services.database_service import DatabaseService
 from schemas import Portfolio, Stock, StockUpdateInput, UserUpdateInput
 
+   
 @pytest.fixture
 def db_service():
     """Initialises DatabaseService using a persistent in-memory connection instance."""
@@ -101,7 +102,7 @@ def test_get_password_hash_success(db_service):
 
 # --- PORTFOLIO TESTS ---
 
-def test_add_and_get_portfolio_workflow(db_service):
+def test_add_portfolio_success(db_service):
     """Verifies end-to-end operational insertion and targeted identification of portfolios."""
     mock_portfolio = Portfolio(id="p-100", name="Tech Growth", username="tommyshelby@yahoo.co.uk")
     
@@ -117,13 +118,29 @@ def test_add_and_get_portfolio_workflow(db_service):
     assert len(all_portfolios) == 1
     assert all_portfolios[0]["id"] == "p-100"
 
-
 def test_get_portfolio_not_found(db_service):
     """Verifies missing identifiers gracefully evaluate to None signatures."""
     assert db_service.get_portfolio("non-existent-id") is None
 
+def test_get_portfolio_database_error(db_service):
+    """Test that a sqlite3.Error during query execution successfully triggers _handle_db_error."""
+    
+    # 1. Retrieve the connection object your fixture is using
+    conn = db_service._get_connection()
+    
+    # 2. Break the connection state deliberately to force a real sqlite3.Error 
+    # (e.g., closing the connection makes any subsequent execute() fail with a ProgrammingError)
+    conn.close()
 
-def test_delete_portfolio_workflow(db_service):
+    # 3. Assert that get_portfolios catches the error and throws your 409 Conflict
+    with pytest.raises(HTTPException) as exc_info:
+        db_service.get_portfolio("p-100")
+        
+    # 4. Verify your custom formatting from _handle_db_error
+    assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+    assert "Failed fetching the Portfolio information for " in exc_info.value.detail
+    
+def test_delete_portfolio_success(db_service):
     """Verifies complete component removal updates row collections."""
     mock_portfolio = Portfolio(id="p-del", name="To Delete", username="tommyshelby@peakyblinders.com")
     db_service.add_portfolio(mock_portfolio)
@@ -131,10 +148,118 @@ def test_delete_portfolio_workflow(db_service):
     db_service.delete_portfolio("p-del")
     assert db_service.get_portfolio("p-del") is None
 
+def test_get_portfolios_database_error(db_service):
+    """Test that a sqlite3.Error during query execution successfully triggers _handle_db_error."""
+    
+    # 1. Retrieve the connection object your fixture is using
+    conn = db_service._get_connection()
+    
+    # 2. Break the connection state deliberately to force a real sqlite3.Error 
+    # (e.g., closing the connection makes any subsequent execute() fail with a ProgrammingError)
+    conn.close()
 
+    # 3. Assert that get_portfolios catches the error and throws your 409 Conflict
+    with pytest.raises(HTTPException) as exc_info:
+        db_service.get_portfolios()
+        
+    # 4. Verify your custom formatting from _handle_db_error
+    assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+    assert "Failed fetching the Portfolios." in exc_info.value.detail
+
+def test_add_portfolio_database_error(db_service):
+    """
+    Test that a sqlite3.Error during add_portfolio correctly triggers 
+    a 409 HTTPException via the internal _handle_db_error helper.
+    """
+    # 1. Arrange: Point to a real in-memory SQLite workspace instance
+    db_service.db_path = ":memory:"
+    
+    # 2. Intentionally DO NOT create the 'portfolios' database table.
+    # When add_portfolio tries to run an INSERT on a table that doesn't exist,
+    # the real Python sqlite3 engine will throw a genuine sqlite3.OperationalError.
+    def get_real_in_memory_connection():
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    db_service._get_connection = get_real_in_memory_connection
+
+    # 3. Form a valid Portfolio data entity payload
+    mock_portfolio = Portfolio(
+        id="portfolio_error_999",
+        name="Crisis Asset Management Portfolio",
+        username="pollyshelby@peakyblinders.com"
+    )
+
+    # 4. Act & Assert: Verify that the real SQLite error bubbles out as a 409 Conflict
+    with pytest.raises(HTTPException) as exc_info:
+        db_service.add_portfolio(mock_portfolio)
+
+    assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+    assert "Database insertion problem for the Portfolio 'portfolio_error_999'." in exc_info.value.detail
+    assert "no such table: portfolios" in exc_info.value.detail
+
+def test_delete_portfolio_database_error(db_service):
+    """
+    Test that a sqlite3.Error during delete_portfolio correctly triggers 
+    a 409 HTTPException via the internal _handle_db_error helper.
+    """
+    
+    db_service.db_path = ":memory:"
+    
+    def get_real_in_memory_connection():
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    db_service._get_connection = get_real_in_memory_connection
+
+    # Act & Assert: Verify that the real SQLite error bubbles out as a 409 Conflict
+    with pytest.raises(HTTPException) as exc_info:
+        db_service.delete_portfolio("p-del")
+
+    assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+    assert "Database deletion problem for the Portfolio 'p-del'" in exc_info.value.detail
+    assert "no such table: portfolios" in exc_info.value.detail
+       
 # --- STOCK TESTS ---
+def test_get_stocks_database_error(db_service):
+    """Test that a sqlite3.Error during query execution successfully triggers _handle_db_error."""
+    
+    # 1. Retrieve the connection object your fixture is using
+    conn = db_service._get_connection()
+    
+    # 2. Break the connection state deliberately to force a real sqlite3.Error 
+    # (e.g., closing the connection makes any subsequent execute() fail with a ProgrammingError)
+    conn.close()
 
-def test_add_and_get_stock_workflow(db_service):
+    # 3. Assert that get_portfolios catches the error and throws your 409 Conflict
+    with pytest.raises(HTTPException) as exc_info:
+        db_service.get_stocks("p-100")
+        
+    # 4. Verify your custom formatting from _handle_db_error
+    assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+    assert "Failed fetching the Stocks for Portfolio " in exc_info.value.detail 
+    
+def test_get_stock_database_error(db_service):
+    """Test that a sqlite3.Error during query execution successfully triggers _handle_db_error."""
+    
+    # 1. Retrieve the connection object your fixture is using
+    conn = db_service._get_connection()
+    
+    # 2. Break the connection state deliberately to force a real sqlite3.Error 
+    # (e.g., closing the connection makes any subsequent execute() fail with a ProgrammingError)
+    conn.close()
+
+    # 3. Assert that get_portfolios catches the error and throws your 409 Conflict
+    with pytest.raises(HTTPException) as exc_info:
+        db_service.get_stock("AAPL", "p-main")
+        
+    # 4. Verify your custom formatting from _handle_db_error
+    assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+    assert "Failed fetching the Stock information for " in exc_info.value.detail
+  
+def test_add_stock_success(db_service):
     """Verifies asset allocation insertions apply constraints like uppercase filtering."""
     # First insert a dummy parent portfolio to satisfy foreign key structures safely
     mock_portfolio = Portfolio(id="p-main", name="Main Portfolio", username="tommyshelby@peakyblinders.com")
@@ -164,7 +289,6 @@ def test_add_and_get_stock_workflow(db_service):
     assert len(all_stocks) == 1
     assert all_stocks[0]["symbol"] == "AAPL"
 
-
 def test_update_stock_partial_fields(db_service):
     """Verifies iterative dynamic mapping processes field update sets."""
     mock_portfolio = Portfolio(id="p-1", name="Main", username="tommyshelby@peakyblinders.com")
@@ -182,8 +306,42 @@ def test_update_stock_partial_fields(db_service):
     assert updated_record["currency"] == "EUR"
     assert updated_record["company"] == "Tesla"
 
+def test_update_stock_database_error(db_service):
+    """
+    Test that a sqlite3.Error during update_stock correctly triggers 
+    a 409 HTTPException via the internal _handle_db_error helper.
+    """
+    
+    db_service.db_path = ":memory:"
+    
+    def get_real_in_memory_connection():
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        return conn
 
-def test_delete_stock_workflow(db_service):
+    db_service._get_connection = get_real_in_memory_connection
+
+    update_payload = StockUpdateInput(owned=15, cost=180.25, currency="eur")
+    
+    # Act & Assert: Verify that the real SQLite error bubbles out as a 409 Conflict
+    with pytest.raises(HTTPException) as exc_info:
+        db_service.update_stock("TSLA", "p-1", update_payload)
+
+    assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+    assert "Database update problem for stock=TSLA, portfolio=p-1" in exc_info.value.detail
+    assert "no such table: stocks" in exc_info.value.detail
+    
+def test_update_stock_no_fields(db_service):
+    """Verifies iterative dynamic mapping processes field update sets."""
+    mock_stock = StockUpdateInput()
+    
+    with pytest.raises(HTTPException) as exc_info:
+        db_service.update_stock("TSLA", "p-1", mock_stock)
+
+    assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+    assert "No fields provided for update" in exc_info.value.detail
+
+def test_delete_stock_success(db_service):
     """Verifies target removal criteria unlinks records cleanly."""
     mock_portfolio = Portfolio(id="p-1", name="Main", username="tommyshelby@peakyblinders.com")
     db_service.add_portfolio(mock_portfolio)
@@ -193,9 +351,64 @@ def test_delete_stock_workflow(db_service):
     
     db_service.delete_stock("MSFT", "p-1")
     assert db_service.get_stock("MSFT", "p-1") is None
-    
-# --- USER OPERATION TESTS ---
 
+def test_add_stock_database_error(db_service):
+    """
+    Test that a sqlite3.Error during add_stock correctly triggers 
+    a 409 HTTPException via the internal _handle_db_error helper.
+    """
+    
+    db_service.db_path = ":memory:"
+    
+    def get_real_in_memory_connection():
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    db_service._get_connection = get_real_in_memory_connection
+
+    mock_stock = Stock(
+        portfolio_id="p-main",
+        symbol="APPL",  
+        company="Apple Inc.",
+        exchange="NASDAQ",
+        currency="usd",       
+        owned=10,
+        cost=175.50
+    )
+    
+    # Act & Assert: Verify that the real SQLite error bubbles out as a 409 Conflict
+    with pytest.raises(HTTPException) as exc_info:
+        db_service.add_stock(mock_stock, portfolio_id="p-main")
+
+    assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+    assert "Database insertion problem for the stock APPL, in the Portfolio for p-main" in exc_info.value.detail
+    assert "no such table: stocks" in exc_info.value.detail
+
+def test_delete_stock_database_error(db_service):
+    """
+    Test that a sqlite3.Error during delete_stock correctly triggers 
+    a 409 HTTPException via the internal _handle_db_error helper.
+    """
+    
+    db_service.db_path = ":memory:"
+    
+    def get_real_in_memory_connection():
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    db_service._get_connection = get_real_in_memory_connection
+
+    # Act & Assert: Verify that the real SQLite error bubbles out as a 409 Conflict
+    with pytest.raises(HTTPException) as exc_info:
+        db_service.delete_stock("MSFT", "p-1")
+
+    assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+    assert "Database removal task failed for stock=MSFT, portfolio=p-1" in exc_info.value.detail
+    assert "no such table: stocks" in exc_info.value.detail
+        
+# --- USER OPERATION TESTS ---
 def test_register_user_success(db_service):
     """Verifies that user data inserts cleanly using service method hooks."""
     # Pass a value for the required 'scopes' argument (adjust type as needed, e.g., list or string)
@@ -203,13 +416,11 @@ def test_register_user_success(db_service):
     print(result)
     assert result.username == "tommyshelby@peakyblinders.com"
 
-
     # Fetch through backend records to check serialization
     user_record = db_service.get_user("tommyshelby@peakyblinders.com")
     assert user_record is not None
     assert user_record["username"] == "tommyshelby@peakyblinders.com"
     assert user_record["hashed_password"].startswith("$2b$") 
-
 
 def test_register_user_duplicate_conflict(db_service):
     """Verifies that registering an existing user triggers a 409 error constraint."""
@@ -219,7 +430,6 @@ def test_register_user_duplicate_conflict(db_service):
     # Assert that trying to reuse the primary key raises a 409 conflict exception
     with pytest.raises(HTTPException) as exc_info:
         db_service.register_user("pollyshelby@peakyblinders.com", SecretStr("passwordB"), ["add", "update","delete","view"])
-
     
     assert "UNIQUE constraint" in exc_info.value.detail
 
@@ -230,10 +440,35 @@ def test_register_user_invalid_scope(db_service):
     with pytest.raises(ValidationError) as exc_info:
         db_service.register_user("bad_scope@peakyblinders.com", SecretStr("passwordA"), ["bad_scope"])
 
-    
     assert "Invalid scope(s) found" in str(exc_info.value)
 
-def test_update_user_password_workflow(db_service):
+def test_update_user_password_database_error(db_service):
+    """
+    Test that a sqlite3.Error during update_stock correctly triggers 
+    a 409 HTTPException via the internal _handle_db_error helper.
+    """
+    
+    db_service.db_path = ":memory:"
+    
+    def get_real_in_memory_connection():
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    db_service._get_connection = get_real_in_memory_connection
+
+    update_payload = UserUpdateInput(password=SecretStr("brand_new_secret_99"))
+   
+    
+    # Act & Assert: Verify that the real SQLite error bubbles out as a 409 Conflict
+    with pytest.raises(HTTPException) as exc_info:
+         db_service.update_user_password("tommyshelby@peakyblinders.com", update_payload)
+
+    assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+    assert "Failed to update password for the User 'tommyshelby@peakyblinders.com'" in exc_info.value.detail
+    assert "no such table: users" in exc_info.value.detail
+
+def test_update_user_password_success(db_service):
     """Verifies that changing a user password overwrites the database row value."""
     db_service.register_user("tommyshelby@peakyblinders.com", SecretStr("initial_password"), ["add", "update","delete","view"])
     initial_record = db_service.get_user("tommyshelby@peakyblinders.com")
@@ -247,8 +482,7 @@ def test_update_user_password_workflow(db_service):
     assert updated_record["hashed_password"] != initial_hash
     assert updated_record["hashed_password"].startswith("$2b$")
 
-
-def test_delete_user_workflow(db_service):
+def test_delete_user(db_service):
     """Verifies user entry removal cleans up associated portfolios via cascading constraints."""
     db_service.register_user("alfredshelby@peakyblinders.com", SecretStr("pass123"), ["add", "update","delete","view"])
     
@@ -264,6 +498,28 @@ def test_delete_user_workflow(db_service):
     # Verify cascading constraints purged the orphaned portfolio entry automatically
     #assert db_service.get_portfolio("p-casc") is None
 
+def test_delete_user_database_error(db_service):
+    """
+    Test that a sqlite3.Error during delete_user correctly triggers 
+    a 409 HTTPException via the internal _handle_db_error helper.
+    """
+    
+    db_service.db_path = ":memory:"
+    
+    def get_real_in_memory_connection():
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    db_service._get_connection = get_real_in_memory_connection
+
+    # Act & Assert: Verify that the real SQLite error bubbles out as a 409 Conflict
+    with pytest.raises(HTTPException) as exc_info:
+        db_service.delete_user("alfredshelby@peakyblinders.com")
+
+    assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+    assert "Failed to delete the User 'alfredshelby@peakyblinders.com'" in exc_info.value.detail
+    assert "no such table: users" in exc_info.value.detail
 
 # --- PORTFOLIO OPERATIONS TESTS ---
 
@@ -272,7 +528,6 @@ def test_get_portfolios_empty(db_service):
     results = db_service.get_portfolios()
     assert isinstance(results, list)
     assert len(results) == 0
-
 
 def test_get_portfolios_multiple_records(db_service):
     """Verifies record collection parsing builds dictionary mappings accurately."""
@@ -355,35 +610,3 @@ def test_verify_portfolio_ownership_database_exception_fallback(db_service):
     # Assert: Must evaluate to False cleanly without bubbling up unhandled exceptions
     assert is_owner is False
     
-def test_add_portfolio_sqlite_error(db_service):
-    """
-    Test that a sqlite3.Error during add_portfolio correctly triggers 
-    a 409 HTTPException via the internal _handle_db_error helper.
-    """
-    # 1. Arrange: Point to a real in-memory SQLite workspace instance
-    db_service.db_path = ":memory:"
-    
-    # 2. Intentionally DO NOT create the 'portfolios' database table.
-    # When add_portfolio tries to run an INSERT on a table that doesn't exist,
-    # the real Python sqlite3 engine will throw a genuine sqlite3.OperationalError.
-    def get_real_in_memory_connection():
-        conn = sqlite3.connect(":memory:")
-        conn.row_factory = sqlite3.Row
-        return conn
-
-    db_service._get_connection = get_real_in_memory_connection
-
-    # 3. Form a valid Portfolio data entity payload
-    mock_portfolio = Portfolio(
-        id="portfolio_error_999",
-        name="Crisis Asset Management Portfolio",
-        username="pollyshelby@peakyblinders.com"
-    )
-
-    # 4. Act & Assert: Verify that the real SQLite error bubbles out as a 409 Conflict
-    with pytest.raises(HTTPException) as exc_info:
-        db_service.add_portfolio(mock_portfolio)
-
-    assert exc_info.value.status_code == status.HTTP_409_CONFLICT
-    assert "Database insertion problem for the Portfolio 'portfolio_error_999'." in exc_info.value.detail
-    assert "no such table: portfolios" in exc_info.value.detail
