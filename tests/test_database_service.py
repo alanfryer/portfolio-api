@@ -1,5 +1,6 @@
 import sqlite3
 import pytest
+import bcrypt
 from fastapi import HTTPException, status
 from pydantic import SecretStr, ValidationError
 from unittest.mock import MagicMock, patch
@@ -99,7 +100,20 @@ def test_get_password_hash_success(db_service):
     assert isinstance(hashed_str, str)
     assert hashed_str.startswith("$2b$")
 
-
+def test_crypto_failure_raises_http_exception(db_service, monkeypatch):
+    """Tests that internal errors map correctly to a 500 HTTPException."""
+    secret_password = SecretStr("TestPassword")
+    
+    # Force bcrypt to throw an exception during generation
+    monkeypatch.setattr(bcrypt, "hashpw", MagicMock(side_effect=ValueError("Mocked failure")))
+    
+    # Assert exception type and code
+    with pytest.raises(HTTPException) as exc_info:
+        db_service._get_password_hash(secret_password)
+        
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == "Security framework processing failure."
+        
 # --- PORTFOLIO TESTS ---
 
 def test_add_portfolio_success(db_service):
@@ -481,7 +495,28 @@ def test_update_user_password_success(db_service):
     updated_record = db_service.get_user("tommyshelby@peakyblinders.com")
     assert updated_record["hashed_password"] != initial_hash
     assert updated_record["hashed_password"].startswith("$2b$")
+    
+def test_register_user_duplicate_conflict(db_service):
+    """Verifies that registering an existing user triggers a 409 error constraint."""
+    # Pass a value for the required 'scopes' argument here as well
+    db_service.register_user("pollyshelby@peakyblinders.com", SecretStr("passwordA"), ["add", "update","delete","view"])
 
+    # Assert that trying to reuse the primary key raises a 409 conflict exception
+    with pytest.raises(HTTPException) as exc_info:
+        db_service.register_user("pollyshelby@peakyblinders.com", SecretStr("passwordB"), ["add", "update","delete","view"])
+    
+    assert "UNIQUE constraint" in exc_info.value.detail
+
+def test_register_user_invalid_scope(db_service):
+    """Verifies that registering an existing user triggers a 409 error constraint."""
+
+    # Assert that trying to reuse the primary key raises a 409 conflict exception
+    with pytest.raises(ValidationError) as exc_info:
+        db_service.register_user("bad_scope@peakyblinders.com", SecretStr("passwordA"), ["bad_scope"])
+
+    assert "Invalid scope(s) found" in str(exc_info.value)
+
+   
 def test_delete_user(db_service):
     """Verifies user entry removal cleans up associated portfolios via cascading constraints."""
     db_service.register_user("alfredshelby@peakyblinders.com", SecretStr("pass123"), ["add", "update","delete","view"])

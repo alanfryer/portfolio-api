@@ -124,11 +124,11 @@ def test_get_latest_price_empty_market_data(portfolio_service, mock_db_service):
         # Depending on how you handle empty data after line 42, 
         # this will either fail, or you can assert your specific custom error/HTTPException here.
         # For now, we verify it hits the validation flow.
-#        try:
-#            portfolio_service.get_latest_price("AAPL", "user_portfolio_123")
-#        except Exception as e:
+        try:
+            portfolio_service.get_latest_price("AAPL", "user_portfolio_123")
+        except Exception as e:
             # Add assertions here once you decide if it raises a specific exception
-#            pass
+            pass
         # Act & Assert
         with pytest.raises(HTTPException) as exc_info:
             portfolio_service.get_latest_price("AAPL", "user_portfolio_123")

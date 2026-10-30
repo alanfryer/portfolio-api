@@ -267,7 +267,6 @@ class DatabaseService:
 
                 conn.commit()
         except ValidationError as e:
-            print(f"-------------------{e}")
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail= f"Password field is required for update. the User '{username}'."

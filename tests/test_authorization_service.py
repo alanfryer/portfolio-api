@@ -181,39 +181,6 @@ async def test_authenticate_bearer_malformed_jwt(mock_jwt_decode, auth_service, 
         await auth_service.authenticate(mock_request)
     assert "Error parsing the JWT Token" in exc_info.value.detail
 
-# -------------------------------------------------------------------------
-# 5. Tests for Static Methods (get_password_hash & verify_password)
-# -------------------------------------------------------------------------
-
-def test_get_password_hash_success():
-    """Test that get_password_hash successfully converts a SecretStr into a valid bcrypt string."""
-    # Arrange
-    plain_password = SecretStr("my_super_secret_password")
-
-    # Act
-    hashed_password = AuthorizationService.get_password_hash(plain_password)
-
-    # Assert
-    assert isinstance(hashed_password, str)
-    assert len(hashed_password) > 0
-    # bcyrpt hashes typically start with $2b$ or $2a$
-    assert hashed_password.startswith("$2") 
-
-
-def test_verify_password_integration():
-    """Integration test validating that a generated hash successfully verifies against its plain source."""
-    # Arrange
-    correct_password = SecretStr("correct_pass123")
-    wrong_password = SecretStr("incorrect_pass123")
-
-    # Act
-    hashed_password = AuthorizationService.get_password_hash(correct_password)
-
-    # Assert
-    assert AuthorizationService.verify_password(correct_password, hashed_password) is True
-    assert AuthorizationService.verify_password(wrong_password, hashed_password) is False
-
-
 @patch("services.authorization_service.bcrypt.checkpw")
 def test_verify_password_exception_handling(mock_checkpw):
     """Test that verify_password handles internal runtime exceptions cleanly and returns False."""

@@ -34,15 +34,6 @@ class AuthorizationService:
         self.database_service = database_service or DatabaseService()
 
     @staticmethod
-    def get_password_hash(password: SecretStr) -> str:
-        """Hashes a plain text password safely using native bcrypt."""
-        raw_password = password.get_secret_value()
-        password_bytes = raw_password.encode("utf-8")
-        salt = bcrypt.gensalt()
-        hashed_bytes = bcrypt.hashpw(password_bytes, salt)
-        return hashed_bytes.decode("utf-8")
-
-    @staticmethod
     def verify_password(plain_password: SecretStr, hashed_password: str) -> bool:
         """Verifies a plain text password against a stored bcrypt hash string."""
         try:
