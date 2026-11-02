@@ -29,7 +29,37 @@ def portfolio_service(mock_db_service):
     with patch('services.exchange_rate_service.ExchangeRateService') as mock_exchange_service:
         service = PortfolioService(database_service=mock_db_service)
         yield service
+    @pytest.fixture
+    def mock_service(self):
+        """Initializes the class context with valid positional arguments."""
+        # 1. Create mock instances for both dependencies
+        mock_db = MagicMock()
+        mock_exchange = MagicMock()
+        
+        # 2. Pass database_service positionally to satisfy __init__
+        obj = PortfolioService(mock_db)
+        
+        # 3. Manually bind the exchange rate service attribute to the instance
+        obj.exchange_rate_service = mock_exchange
+        obj.database_service = mock_db
+        
+        # 4. CRITICAL: Ensure the instance is returned to the test cases
+        return obj
+        
 
+    @pytest.fixture
+    def valid_db_info(self):
+        return {
+            "company": "Apple Inc.",
+            "exchange": "NASDAQ",
+            "currency": "USD",
+            "owned": 10,
+            "cost": 1500.0
+        }
+
+    @pytest.fixture
+    def mock_yf_dataframe(self):
+        return pd.DataFrame({"Open": [170.0], "Close": [175.0]})
 
 def test_get_latest_price_success(portfolio_service, mock_db_service):
     """Test successful retrieval and pricing of a configured stock."""
@@ -301,3 +331,125 @@ def test_secret_key_initialization():
     # Restore key
     if old_key:
         os.environ["SECRET_KEY"] = old_key
+        
+    @patch("services.portfolio_service.yf.Ticker")  
+    def test_get_latest_price_success_standard_currency(self, mock_ticker_cls, mock_service, valid_db_info, mock_yf_dataframe):
+        mock_service.database_service.get_stock.return_value = valid_db_info
+        mock_service.exchange_rate_service.get_exchange_rate.return_value = 1.0
+        
+        mock_ticker = MagicMock()
+        mock_ticker.history.return_value = mock_yf_dataframe
+        mock_ticker_cls.return_value = mock_ticker
+
+        # Call the method directly from the service instance
+        result = mock_service.get_latest_price("aapl ", "port_123")
+
+        assert isinstance(result, StockResponse)
+        assert result.symbol == "AAPL"
+        assert result.open_price == 170.0
+        assert result.close_price == 175.0
+        assert result.close_value == 1750.0
+        assert result.daily_change == 50.0
+        assert result.overall_change == 250.0
+        mock_service.database_service.get_stock.assert_called_once_with("AAPL", "port_123")
+
+    @patch("services.portfolio_service.yf.Ticker")
+    def test_get_latest_price_success_lse_gbp_pence(self, mock_ticker_cls, mock_service, valid_db_info, mock_yf_dataframe):
+        valid_db_info["currency"] = "GBX"
+        mock_service.database_service.get_stock.return_value = valid_db_info
+        
+        mock_ticker = MagicMock()
+        mock_ticker.history.return_value = mock_yf_dataframe
+        mock_ticker_cls.return_value = mock_ticker
+
+        result = mock_service.get_latest_price("BP", "port_123")
+
+        assert result.currency == "GBX"
+        assert result.close_value == 17.50
+        assert result.daily_change == 0.50
+        mock_service.exchange_rate_service.get_exchange_rate.assert_not_called()
+
+    @patch("services.portfolio_service.yf.Ticker")
+    def test_get_latest_price_handles_zero_open_price(self, mock_ticker_cls, mock_service, valid_db_info):
+        mock_service.database_service.get_stock.return_value = valid_db_info
+        mock_service.exchange_rate_service.get_exchange_rate.return_value = 1.0
+        
+        zero_open_df = pd.DataFrame({"Open": [0.0], "Close": [150.0]})
+        mock_ticker = MagicMock()
+        mock_ticker.history.return_value = zero_open_df
+        mock_ticker_cls.return_value = mock_ticker
+
+        result = mock_service.get_latest_price("AAPL", "port_123")
+
+        assert result.open_price == 150.0
+        assert result.daily_change == 0.0
+
+    # --- ERROR HANDLING CASES ---
+
+    def test_get_latest_price_missing_metadata_raises_404(self, mock_service):
+        mock_service.database_service.get_stock.return_value = None
+
+        with pytest.raises(HTTPException) as exc_info:
+            mock_service.get_latest_price("UNKNOWN", "port_123")
+
+        assert exc_info.value.status_code == 404
+        assert "not configured" in exc_info.value.detail
+
+    @patch("services.portfolio_service.yf.Ticker")
+    def test_get_latest_price_yfinance_network_failure_raises_502(self, mock_ticker_cls, mock_service, valid_db_info):
+        mock_service.database_service.get_stock.return_value = valid_db_info
+        
+        mock_ticker = MagicMock()
+        mock_ticker.history.side_effect = Exception("Downstream Timeout")
+        mock_ticker_cls.return_value = mock_ticker
+
+        with pytest.raises(HTTPException) as exc_info:
+            mock_service.get_latest_price("AAPL", "port_123")
+
+        assert exc_info.value.status_code == 502
+        assert "Market data provider unavailable" in exc_info.value.detail
+
+    @patch("services.portfolio_service.yf.Ticker")
+    def test_get_latest_price_empty_dataframe_raises_404(self, mock_ticker_cls, mock_service, valid_db_info):
+        mock_service.database_service.get_stock.return_value = valid_db_info
+        
+        mock_ticker = MagicMock()
+        mock_ticker.history.return_value = pd.DataFrame()
+
+        mock_ticker_cls.return_value = mock_ticker
+
+        with pytest.raises(HTTPException) as exc_info:
+            mock_service.get_latest_price("AAPL", "port_123")
+
+        assert exc_info.value.status_code == 404
+        assert "No pricing information returned" in exc_info.value.detail
+
+    @patch("services.portfolio_service.yf.Ticker")
+    def test_get_latest_price_malformed_dataframe_matrix_raises_422(self, mock_ticker_cls, mock_service, valid_db_info):
+        mock_service.database_service.get_stock.return_value = valid_db_info
+        
+        malformed_df = pd.DataFrame({"WrongHeader": [100.0]})
+        mock_ticker = MagicMock()
+        mock_ticker.history.return_value = malformed_df
+        mock_ticker_cls.return_value = mock_ticker
+
+        with pytest.raises(HTTPException) as exc_info:
+            mock_service.get_latest_price("AAPL", "port_123")
+
+        assert exc_info.value.status_code == 422
+        assert "Unable to parse open/close prices" in exc_info.value.detail
+
+    @patch("services.portfolio_service.yf.Ticker")
+    def test_get_latest_price_invalid_exchange_rate_raises_502(self, mock_ticker_cls, mock_service, valid_db_info, mock_yf_dataframe):
+        mock_service.database_service.get_stock.return_value = valid_db_info
+        mock_service.exchange_rate_service.get_exchange_rate.return_value = -0.5
+        
+        mock_ticker = MagicMock()
+        mock_ticker.history.return_value = mock_yf_dataframe
+        mock_ticker_cls.return_value = mock_ticker
+
+        with pytest.raises(HTTPException) as exc_info:
+            mock_service.get_latest_price("AAPL", "port_123")
+
+        assert exc_info.value.status_code == 502
+        assert "Currency exchange rate cross-matrix matching failed" in exc_info.value.detail
