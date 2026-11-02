@@ -1,5 +1,6 @@
 import base64
 import pytest
+import sys
 from unittest.mock import MagicMock, patch, AsyncMock
 import jwt
 from fastapi import HTTPException, Request, status
@@ -461,3 +462,23 @@ def test_create_auth_exception_triggers_error_logging(mock_logger):
 
     # Assert
     mock_logger.error.assert_called_once_with(test_detail)
+    
+def test_secret_key_missing_raises_runtime_error(monkeypatch):
+    """Ensures that a RuntimeError is thrown during initialization if SECRET_KEY is absent."""
+    # Arrange
+    # 1. Strip SECRET_KEY completely from the runtime environment context
+    monkeypatch.delenv("SECRET_KEY", raising=False)
+    
+    # 2. Unload the module from Python's cache if it was imported by previous tests
+    # Replace 'services.authorization_service' with the actual import path of this file
+    module_name = "services.authorization_service"
+    if module_name in sys.modules:
+        del sys.modules[module_name]
+
+    # Act & Assert
+    # 3. Importing the module forces the top-level execution logic to run from scratch
+    with pytest.raises(RuntimeError) as exc_info:
+        __import__(module_name)
+
+    # 4. Verify the exact security error message envelope matches your assertion
+    assert str(exc_info.value) == "CRITICAL ENVIRONMENT CONFIGURATION ERROR: 'SECRET_KEY' environment variable is missing."

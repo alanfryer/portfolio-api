@@ -659,3 +659,26 @@ def test_verify_portfolio_ownership_database_exception_fallback(db_service):
     # Assert: Must evaluate to False cleanly without bubbling up unhandled exceptions
     assert is_owner is False
     
+@patch("services.database_service.DatabaseService._get_password_hash")
+def test_update_user_password_validation_error_raises_409(mock_get_hash):
+    """Ensures a 409 Conflict is raised with the correct message when a ValidationError occurs."""
+    # Arrange
+    service = DatabaseService()
+    username = "test@example.com"
+    
+    # 1. Use a real instance of the Pydantic model so 'password' naturally exists
+    real_update_data = UserUpdateInput(password=SecretStr("dummy_pass"))
+    
+    # 2. Configure the mocked internal method to throw the target ValidationError
+    mock_get_hash.side_effect = ValidationError.from_exception_data(
+        title="UserUpdateInput", 
+        line_errors=[{"type": "missing", "loc": ("password",), "input": None}]
+    )
+
+    # Act & Assert
+    with pytest.raises(HTTPException) as exc_info:
+        service.update_user_password(username=username, update_data=real_update_data)
+
+    # Assert exact exception attributes matching your validation layout
+    assert exc_info.value.status_code == status.HTTP_409_CONFLICT
+    assert exc_info.value.detail == f"Password field is required for update. the User '{username}'."
