@@ -59,7 +59,7 @@ class PortfolioService:
         except (IndexError, KeyError, ValueError) as e:
             logger.error(f"Malformed market structure matrix for {symbol_clean}: {str(e)}")
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Unable to parse open/close prices for {symbol_clean}."
             )
 

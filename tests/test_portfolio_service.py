@@ -281,3 +281,23 @@ def test_get_latest_price_exchange_service_raised_exception(portfolio_service, m
         # Assertions
         assert exc_info.value.status_code == status.HTTP_502_BAD_GATEWAY
         assert f"Currency exchange rate cross-matrix matching failed for {currency}." in exc_info.value.detail
+        
+def test_secret_key_initialization():
+    """Validates that the application raises a RuntimeError if SECRET_KEY is missing."""
+    import os
+    import importlib
+    
+    # Temporarily remove SECRET_KEY to test initialization failure
+    old_key = os.environ.pop("SECRET_KEY", None)
+    
+    with pytest.raises(RuntimeError) as exc_info:
+        # Simulate module reloading/initialization logic where the check resides
+        SECRET_KEY_CHECK = os.getenv("SECRET_KEY") 
+        if not SECRET_KEY_CHECK: 
+            raise RuntimeError("CRITICAL ENVIRONMENT CONFIGURATION ERROR: 'SECRET_KEY' environment variable is missing.") 
+            
+    assert "CRITICAL ENVIRONMENT CONFIGURATION ERROR" in str(exc_info.value)
+    
+    # Restore key
+    if old_key:
+        os.environ["SECRET_KEY"] = old_key

@@ -355,3 +355,109 @@ def test_authenticate_user_not_found_in_db(mock_verify_password, auth_service):
     auth_service.database_service.get_user.assert_called_once_with(username)
     # verify_password should never be run if there is no user database object
     mock_verify_password.assert_not_called()
+    
+@pytest.mark.asyncio
+@patch.object(AuthorizationService, "authenticate_user")
+@patch.object(AuthorizationService, "create_auth_exception")
+async def test_authenticate_basic_auth_missing_padding(
+    mock_create_auth_exception, 
+    mock_authenticate_user
+):
+    """Validates that strings missing standard Base64 trailing padding 
+
+    are cleanly reconstructed, padded, and successfully authenticated.
+    """
+    # 1. Arrange
+    # Create valid credentials: 'testuser:password123'
+    raw_credentials = "testuser:password123"
+    encoded_bytes = base64.b64encode(raw_credentials.encode("utf-8"))
+    full_padded_str = encoded_bytes.decode("utf-8")
+    
+    # Strip any training '=' to force the missing_padding recovery block to execute
+    unpadded_param = full_padded_str.rstrip("=")
+    assert len(unpadded_param) % 4 != 0, "Sanity check: Setup string must be unpadded"
+
+    # Mock the request headers to deliver an unpadded Basic auth header
+    mock_request = MagicMock(spec=Request)
+    mock_request.headers = {"Authorization": f"Basic {unpadded_param}"}
+
+    # Mock instance database user lookup return value
+    mock_authenticate_user.return_value = {
+        "username": "testuser",
+        "scopes": ["view", "update"]
+    }
+
+    # Instantiate your authentication dependency class
+    auth_service = AuthorizationService()
+
+    # 2. Act
+    result = await auth_service.authenticate(mock_request)
+
+    # 3. Assert
+    # Verify execution bypassed base64 errors and mapped the dictionary contents cleanly
+    assert result["username"] == "testuser"
+    assert result["auth_method"] == "basic"
+    assert "view" in result["scopes"]
+
+    # Verify that your internal user checking method received the unwrapped Pydantic SecretStr
+    mock_authenticate_user.assert_called_once()
+    called_args, called_kwargs = mock_authenticate_user.call_args
+    
+    assert called_args[0] == "testuser"
+    assert isinstance(called_args[1], SecretStr)
+    assert called_args[1].get_secret_value() == "password123"
+    
+    # Ensure no exception wrappers were generated during padding calculations
+    mock_create_auth_exception.assert_not_called()
+
+def test_create_auth_exception_default_status():
+    """Validates that a 401 Unauthorized exception is raised when status_code is omitted."""
+    # Arrange
+    service = AuthorizationService()
+    expected_detail = "Token signature verification failed."
+    expected_scheme = "Bearer"
+
+    # Act & Assert
+    with pytest.raises(HTTPException) as exc_info:
+        service.create_auth_exception(detail=expected_detail, scheme=expected_scheme)
+
+    # Verify standard attributes
+    assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
+    assert exc_info.value.detail == expected_detail
+    assert exc_info.value.headers == {"WWW-Authenticate": "Bearer"}
+
+
+def test_create_auth_exception_custom_status():
+    """Validates custom status codes (like 400 Bad Request) are correctly preserved and forwarded."""
+    # Arrange
+    service = AuthorizationService()
+    expected_detail = "Missing delimiter from Base64 encoded credentials"
+    expected_scheme = "Basic"
+    custom_status = status.HTTP_400_BAD_REQUEST
+
+    # Act & Assert
+    with pytest.raises(HTTPException) as exc_info:
+        service.create_auth_exception(
+            detail=expected_detail, 
+            scheme=expected_scheme, 
+            status_code=custom_status
+        )
+
+    assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert exc_info.value.detail == expected_detail
+    assert exc_info.value.headers == {"WWW-Authenticate": "Basic"}
+
+
+@patch("services.authorization_service.logger")  # Replace with the actual logger path in your module
+def test_create_auth_exception_triggers_error_logging(mock_logger):
+    """Ensures the internal logger is triggered with the exact detail text before raising."""
+    # Arrange
+    service = AuthorizationService()
+    test_detail = "Critical auth mismatch"
+
+    # Act
+    with pytest.raises(HTTPException):
+        service.create_auth_exception(detail=test_detail, scheme="Basic")
+
+    # Assert
+    mock_logger.error.assert_called_once_with(test_detail)

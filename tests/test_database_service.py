@@ -113,7 +113,21 @@ def test_crypto_failure_raises_http_exception(db_service, monkeypatch):
         
     assert exc_info.value.status_code == 500
     assert exc_info.value.detail == "Security framework processing failure."
-        
+
+@patch("sqlite3.connect")
+def test_get_connection_closes_on_exception(mock_connect):
+    """Ensures that the connection is closed even if an unexpected exception occurs inside the yield block."""
+    mock_conn = MagicMock()
+    mock_connect.return_value = mock_conn
+
+    service = DatabaseService()
+    
+    with pytest.raises(RuntimeError):
+        with service._get_connection() as conn:
+            raise RuntimeError("Unexpected failure midway through query execution workflow")
+
+    # Confirm clean connection teardown safety limits
+    mock_conn.close.assert_called_once()        
 # --- PORTFOLIO TESTS ---
 
 def test_add_portfolio_success(db_service):
