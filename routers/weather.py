@@ -2,7 +2,7 @@ import logging
 from fastapi import APIRouter, Depends
 from services.weather_service import WeatherService
 
-# Initialise the router module for exchange rate operations
+# Initialise the router module for weather operations
 router = APIRouter()
 logger = logging.getLogger("portfolio_app")
 

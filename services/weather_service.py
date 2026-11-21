@@ -13,11 +13,6 @@ GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
 WEATHER_CODES_FILE = "weather_codes.json"
 MET_OFFICE_API_KEY = os.getenv("METOFFICE_API_KEY", "").strip()
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(levelname)s [%(funcName)s] %(message)s",
-)
-
 # Setup standard structured logging instead of using print()
 logger = logging.getLogger("portfolio_app")
 
@@ -37,7 +32,7 @@ class WeatherService:
             with open(filepath, "r", encoding="utf-8") as file:
                 return json.load(file)
         except (FileNotFoundError, json.JSONDecodeError, OSError) as e:
-            logger.warning("Could not load weather codes from '%s': %s", filepath, e)
+            logger.error("Could not load weather codes from '%s': %s", filepath, e)
             return {}
 
 
@@ -190,17 +185,15 @@ class WeatherService:
                     f"Humidity: {humidity}%"
                 )   
                 
-                #day["location"] = location
-                #day["summary"] = summary
                 data = {
                     "location": location,
                     "summary": summary,
                     "timeSeries": [day]
                 }
-                logger.info(json.dumps(data))
+                
                 return data
 
-            logger.info("No forecast found matching %s at %02d:00.", target_date, target_hour)
+            logger.warning("No forecast found matching %s at %02d:00.", target_date, target_hour)
             return {}
 
         except (KeyError, IndexError, TypeError) as e:
