@@ -109,7 +109,7 @@ class PortfolioService:
             overall_change=round(overall_change, 2),
         )
 
-    def get_portfolio_valuation(self, portfolio_id: str) -> StocksResponse | None:
+    def get_portfolio_valuation(self, portfolio_id: str, position: str) -> StocksResponse | None:
         """Aggregates performance cross-checks across all active positions."""
         stocks = self.database_service.get_stocks(portfolio_id)
 
@@ -132,6 +132,10 @@ class PortfolioService:
     
                 portfolio_position += stock_res.overall_change
                 portfolio_daily_position += stock_res.daily_change
+                
+                if (position.lower() == "down") and stock_res.overall_change > 0:
+                    continue
+                
                 compiled_data.append(stock_res)
             except HTTPException as http_ex:
                 logger.warning(

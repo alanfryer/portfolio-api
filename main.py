@@ -3,10 +3,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi import FastAPI
-from services.authorization_service import AuthorizationService
-from routers import exchange_rates, portfolio, users
+from routers import exchange_rates, portfolio, users, weather
 from exceptions import StockNotFoundException, StockInfoNotFoundException, PortfolioException
-from services.database_service import DatabaseService
+
 
 # Initialise FastAPI application with custom lifespan tracking
 app = FastAPI(title="Portfolio Checker API")
@@ -83,6 +82,7 @@ app.include_router(users.router)
 # 2. Include Data Routers (Fully PROTECTED using our resolved authentication helper)
 app.include_router(exchange_rates.router) #, dependencies=[Depends(auth_dependency)])
 app.include_router(portfolio.router)
+app.include_router(weather.router)
 
 # ==========================================
 # ROOT ENDPOINTS

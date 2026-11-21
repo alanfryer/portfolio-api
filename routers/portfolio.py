@@ -77,6 +77,7 @@ def delete_portfolio(
 def get_live_portfolio_valuation(
     portfolio_id: str,
     view: str | None = None,
+    position: str = "all",
     db: DatabaseService = Depends(get_db_service),
     portfolio: PortfolioService = Depends(get_portfolio_service),
     authenticated: dict = Depends(authorize),
@@ -84,7 +85,7 @@ def get_live_portfolio_valuation(
         
     if view == "valuation":
         try:
-            valuation_data = portfolio.get_portfolio_valuation(portfolio_id)
+            valuation_data = portfolio.get_portfolio_valuation(portfolio_id, position)
         except Exception as e:
             logger.error(f"The Valuation service failed for user '{portfolio_id}'. {str(e)}")
             raise HTTPException(
