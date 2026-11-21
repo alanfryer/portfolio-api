@@ -10,7 +10,6 @@ def get_weather_service() -> WeatherService:
     return WeatherService()
 
 
-
 @router.get("/v1/weather/hourly")
 def get_hourly_forecast(
     location: str, 

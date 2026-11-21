@@ -11,7 +11,7 @@ from urllib3.util.retry import Retry
 MET_OFFICE_URL = "https://data.hub.api.metoffice.gov.uk/sitespecific/v0/point"
 GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
 WEATHER_CODES_FILE = "weather_codes.json"
-MET_OFFICE_API_KEY = os.getenv("METOFFICE_API_KEY", "").strip()
+MET_OFFICE_API_KEY = os.getenv("MET_OFFICE_API_KEY", "").strip()
 
 # Setup standard structured logging instead of using print()
 logger = logging.getLogger("portfolio_app")
@@ -192,10 +192,12 @@ class WeatherService:
                 }
                 
                 return data
-
-            logger.warning("No forecast found matching %s at %02d:00.", target_date, target_hour)
-            return {}
+            
+            msg = "No forecast found matching %s at %02d:00." % (target_date, target_hour)
+            logger.warning(msg)
+            return {"error": msg }
 
         except (KeyError, IndexError, TypeError) as e:
-            logger.error("Unexpected JSON structure while parsing forecast: %s", e, exc_info=True)
-            return None
+            msg = "Unexpected JSON structure while parsing forecast: %s" % e
+            logger.error(msg, exc_info=True)
+            return {"error": msg }
