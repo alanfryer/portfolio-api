@@ -119,7 +119,7 @@ class WeatherService:
             ) from e
 
 
-    def get_forecast(self, location: str, timesteps: str) -> Dict[str, Any]:
+    def call_met_office(self, location: str, timesteps: str) -> Dict[str, Any]:
         """Retrieve site-specific forecast properties from the Met Office DataHub API."""
         if not MET_OFFICE_API_KEY:
             logger.error("MET_OFFICE_API_KEY is missing or empty.")
@@ -204,7 +204,7 @@ class WeatherService:
     def get_hourly_forecast(self, location: str, target_date: str, target_hour: int) -> Dict:
         """Parse a forecast dictionary and return the formatted weather string for a target date and hour."""
         
-        forecast = self.get_forecast(location, "hourly")
+        forecast = self.call_met_office(location, "hourly")
         station = (forecast.get("location") or {}).get("name", "Unknown station")
         days = forecast.get("timeSeries", [])
 
@@ -222,10 +222,11 @@ class WeatherService:
             temp = day.get("screenTemperature", "N/A")
             feels_like_temp = day.get("feelsLikeTemperature", "N/A")
             wind_speed = day.get("windSpeed10m", "N/A")
-            wind_direction = day.get("windDirectionFrom10m", "N/A")
+            wind_direction = self.degrees_to_compass(float(day.get("windDirectionFrom10m", "N/A")))
             wind_gust_speed = day.get("windGustSpeed10m", "N/A")
             precipitation = day.get("probOfPrecipitation", "N/A")
             humidity = day.get("screenRelativeHumidity", "N/A")
+            visibility = day.get("visibility", "N/A")
 
             weather_code = day.get("significantWeatherCode")
             weather_description = (
@@ -233,15 +234,16 @@ class WeatherService:
             )
 
             summary = (
-                f"Nearest weather station {station}, Date: {weather_date}, "
-                f"{weather_description}, Temperature: {temp}, Feels like: {feels_like_temp}, "
-                f"Wind speed: {wind_speed}, direction: {wind_direction}, "
-                f"Wind Gust speed: {wind_gust_speed}, Probability of rain: {precipitation}%, "
-                f"Humidity: {humidity}%"
+                f"{weather_description}, "
+                f"Temperature: {temp}, Feels like {feels_like_temp}, "
+                f"Wind: Speed {wind_speed}mph, Direction {wind_direction}, Gust {wind_gust_speed}mph, "
+                f"Precipitation: {precipitation}%, Humidity: {humidity}%, Visibility: {visibility}m"
             )   
             
             return {
                 "location": location,
+                "met_location": station,
+                "date": weather_date,
                 "summary": summary,
                 "timeSeries": [day]
             }
@@ -253,3 +255,100 @@ class WeatherService:
             detail=msg,
         )
 
+    def get_daily_forecast(self, location: str, target_date: str) -> Dict:
+        """Parse a forecast dictionary and return the formatted weather string for a target date."""
+        
+        forecast = self.call_met_office(location, "daily")
+        station = (forecast.get("location") or {}).get("name", "Unknown station")
+        days = forecast.get("timeSeries", [])
+
+        for day in days:
+            try:
+                weather_date = day["time"]
+                dt = datetime.strptime(weather_date, "%Y-%m-%dT%H:%MZ")
+            except (KeyError, TypeError, ValueError) as e:
+                logger.warning("Skipping entry due to invalid or missing timestamp: %s", e)
+                continue
+
+            if dt.strftime("%d-%m-%Y") != target_date:
+                continue
+
+            day_temp = day.get("dayMaxScreenTemperature", "N/A")
+            night_temp = day.get("nightMinScreenTemperature", "N/A")
+            
+            day_feels_like = day.get("dayMaxFeelsLikeTemp", "N/A")
+            night_feels_like = day.get("nightMinFeelsLikeTemp", "N/A")
+            
+            day_wind_speed = day.get("midday10MWindSpeed", "N/A")
+            night_wind_speed = day.get("midnight10MWindSpeed", "N/A")
+            
+            day_wind_direction = self.degrees_to_compass(float(day.get("midday10MWindDirection")))
+            night_wind_direction = self.degrees_to_compass(float(day.get("midnight10MWindDirection")))
+
+            day_wind_gust_speed = day.get("midday10MWindGust", "N/A")
+            night_wind_gust_speed = day.get("midnight10MWindGust", "N/A")
+
+            day_precipitation = day.get("dayProbabilityOfPrecipitation", "N/A")
+            night_precipitation = day.get("nightProbabilityOfPrecipitation", "N/A")
+            
+            day_humidity = day.get("middayRelativeHumidity", "N/A")
+            night_humidity = day.get("midnightRelativeHumidity", "N/A")
+            
+            day_visibility = day.get("middayVisibility", "N/A")
+            night_visibility = day.get("midnightVisibility", "N/A")
+            
+            weather_code = day.get("daySignificantWeatherCode")
+            day_weather_description = (
+                self.get_weather_code(str(weather_code)) if weather_code is not None else "Unknown"
+            )
+            
+            weather_code = day.get("nightSignificantWeatherCode")
+            night_weather_description = (
+                self.get_weather_code(str(weather_code)) if weather_code is not None else "Unknown"
+            )
+
+            day_summary = (
+                f"{day_weather_description}, "
+                f"Temperature: {day_temp}, Feels like {day_feels_like}, "
+                f"Wind: Speed {day_wind_speed}mph, Direction {day_wind_direction}, Gust {day_wind_gust_speed}mph, "
+                f"Precipitation: {day_precipitation}%, Humidity: {day_humidity}%, Visibility: {day_visibility}m"
+            )   
+
+            night_summary = (
+                f"{night_weather_description}, "
+                f"Temperature: {night_temp}, Feels like {night_feels_like}, "
+                f"Wind: Speed {night_wind_speed}mph, Direction {night_wind_direction}, Gust: {night_wind_gust_speed}mph, "
+                f"Precipitation: {night_precipitation}%, Humidity: {night_humidity}%, Visibility: {night_visibility}m"
+            )        
+                
+            return {
+                "location": location,
+                "met_location": station,
+                "date": weather_date,
+                "summary": [{"day":day_summary},
+                            {"night": night_summary}],
+                "timeSeries": [day]
+            }
+        
+        msg = f"No forecast found matching {target_date}."
+        logger.warning(msg)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=msg,
+        )
+        
+    @staticmethod
+    def degrees_to_compass(degrees: float | int) -> str | None:
+        if degrees is None:
+            return None
+
+        directions = [
+            "N", "NNE", "NE", "ENE",
+            "E", "ESE", "SE", "SSE",
+            "S", "SSW", "SW", "WSW",
+            "W", "WNW", "NW", "NNW"
+        ]
+
+        # Normalize degrees to [0, 360) and divide by 22.5
+        index = round((degrees % 360) / 22.5) % 16
+        return directions[index]
