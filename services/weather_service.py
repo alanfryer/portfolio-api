@@ -222,7 +222,8 @@ class WeatherService:
             temp = day.get("screenTemperature", "N/A")
             feels_like_temp = day.get("feelsLikeTemperature", "N/A")
             wind_speed = day.get("windSpeed10m", "N/A")
-            wind_direction = self.degrees_to_compass(float(day.get("windDirectionFrom10m", "N/A")))
+            raw_dir = day.get("windDirectionFrom10m")
+            wind_direction = self.degrees_to_compass(float(raw_dir)) if raw_dir is not None else "N/A"
             wind_gust_speed = day.get("windGustSpeed10m", "N/A")
             precipitation = day.get("probOfPrecipitation", "N/A")
             humidity = day.get("screenRelativeHumidity", "N/A")
@@ -282,8 +283,11 @@ class WeatherService:
             day_wind_speed = day.get("midday10MWindSpeed", "N/A")
             night_wind_speed = day.get("midnight10MWindSpeed", "N/A")
             
-            day_wind_direction = self.degrees_to_compass(float(day.get("midday10MWindDirection")))
-            night_wind_direction = self.degrees_to_compass(float(day.get("midnight10MWindDirection")))
+            raw_dir = day.get("midday10MWindDirection")
+            day_wind_direction = self.degrees_to_compass(float(raw_dir)) if raw_dir is not None else "N/A"            
+
+            raw_dir = day.get("midnight10MWindDirection")
+            night_wind_direction = self.degrees_to_compass(float(raw_dir)) if raw_dir is not None else "N/A" 
 
             day_wind_gust_speed = day.get("midday10MWindGust", "N/A")
             night_wind_gust_speed = day.get("midnight10MWindGust", "N/A")
@@ -317,7 +321,7 @@ class WeatherService:
             night_summary = (
                 f"{night_weather_description}, "
                 f"Temperature: {night_temp}, Feels like {night_feels_like}, "
-                f"Wind: Speed {night_wind_speed}mph, Direction {night_wind_direction}, Gust: {night_wind_gust_speed}mph, "
+                f"Wind: Speed {night_wind_speed}mph, Direction {night_wind_direction}, Gust {night_wind_gust_speed}mph, "
                 f"Precipitation: {night_precipitation}%, Humidity: {night_humidity}%, Visibility: {night_visibility}m"
             )        
                 

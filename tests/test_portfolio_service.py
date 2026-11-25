@@ -155,7 +155,7 @@ def test_get_portfolio_valuation_success(portfolio_service, mock_db_service):
         mock_latest_price.side_effect = lambda symbol, pid: stock_1 if symbol == "AAPL" else stock_2
 
         # Act
-        result = portfolio_service.get_portfolio_valuation("user_portfolio_123")
+        result = portfolio_service.get_portfolio_valuation("user_portfolio_123", "Up")
 
         # Assert calculations: 
         # portfolio_daily_position = 10.50 + (-5.25) = 5.25
@@ -172,7 +172,7 @@ def test_get_portfolio_valuation_empty_db(portfolio_service, mock_db_service):
     mock_db_service.get_stocks.return_value = []
 
     # Act
-    result = portfolio_service.get_portfolio_valuation("user_portfolio_empty")
+    result = portfolio_service.get_portfolio_valuation("user_portfolio_empty", "Up")
 
     # Assert
     assert result is None
@@ -204,7 +204,7 @@ def test_get_portfolio_valuation_fault_containment_and_skips(portfolio_service, 
         mock_latest_price.side_effect = dynamic_latest_price
 
         # Act
-        result = portfolio_service.get_portfolio_valuation("user_portfolio_123")
+        result = portfolio_service.get_portfolio_valuation("user_portfolio_123", "Up")
 
         # Assert: Loop continues instead of crashing out. Total calculations exclude "INVALID"
         assert result is not None
@@ -224,7 +224,7 @@ def test_get_portfolio_valuation_unhandled_exception_bypass(portfolio_service, m
     valid_stock = DummyStockResponse(symbol="AMZN", daily_change=5.00, overall_change=20.00)
 
     with patch.object(portfolio_service, 'get_latest_price') as mock_latest_price, \
-         patch('services.portfolio_service.StocksResponse', side_effect=DummyStocksResponse):
+        patch('services.portfolio_service.StocksResponse', side_effect=DummyStocksResponse):
         
         def dynamic_latest_price(symbol, portfolio_id):
             if symbol == "CRASH":
@@ -234,7 +234,7 @@ def test_get_portfolio_valuation_unhandled_exception_bypass(portfolio_service, m
         mock_latest_price.side_effect = dynamic_latest_price
 
         # Act
-        result = portfolio_service.get_portfolio_valuation("user_portfolio_123")
+        result = portfolio_service.get_portfolio_valuation("user_portfolio_123", "Up")
 
         # Assert: General exception was contained by the second try-except block
         assert result is not None
@@ -347,7 +347,7 @@ def test_get_latest_price_invalid_rate_scale_raises_502(mock_db_service, invalid
 
     # Act & Assert
     with patch("yfinance.Ticker") as mock_ticker_cls, \
-         patch.object(service.exchange_rate_service, "get_exchange_rate", return_value=invalid_rate):
+        patch.object(service.exchange_rate_service, "get_exchange_rate", return_value=invalid_rate):
         
         mock_ticker_cls.return_value.history.return_value = valid_df
 
@@ -380,7 +380,7 @@ def test_get_latest_price_uk_pence_normalization_branch(mock_db_service, uk_curr
 
     # Act
     with patch("yfinance.Ticker") as mock_ticker_cls, \
-         patch.object(service.exchange_rate_service, "get_exchange_rate") as mock_get_rate:
+        patch.object(service.exchange_rate_service, "get_exchange_rate") as mock_get_rate:
         
         mock_ticker_cls.return_value.history.return_value = mock_df
 
