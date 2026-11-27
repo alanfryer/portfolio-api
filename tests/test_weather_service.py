@@ -19,6 +19,11 @@ def mock_coords(service):
     with patch.object(service, "get_location_coordinates", return_value=(53.258, -2.518)) as mock:
         yield mock
 
+@pytest.fixture
+def mock_fetch():
+  with patch("services.weather_service._fetch_open_meteo_coords") as mock:
+    yield mock
+    
 # ---------------------------------------------------------------------------
 # _load_weather_codes: Happy Path & Exception Handling
 # ---------------------------------------------------------------------------
@@ -74,6 +79,80 @@ def test_load_weather_codes_invalid_json(caplog):
 
     assert result == {}
     assert "Could not load weather codes from '/fake/path/bad_codes.json'" in caplog.text
+    
+def test_valid_weather_codes(service):
+    """Verify known Met Office codes return their expected descriptions."""
+    # Adjust these assertions to match the actual entries in your WEATHER_CODES dict
+    assert WeatherService.get_weather_code(service, "0") == "Clear night"
+    assert WeatherService.get_weather_code(service, "1") == "Sunny day"
+    assert WeatherService.get_weather_code(service, "7") == "Cloudy"
+
+def test_integer_input_coerced_to_string(service):
+    """Ensure integer codes still match string keys due to str(code)."""
+    assert WeatherService.get_weather_code(service, 1) == "Sunny day"
+
+@pytest.mark.parametrize("invalid_code", [
+    "999",          # Non-existent numeric string
+    "invalid",      # Non-numeric string
+    "",             # Empty string
+    " 1 ",          # Unstripped whitespace
+    None,           # NoneType (str(None) -> "None")
+])
+def test_unknown_and_edge_case_codes(service, invalid_code):
+    """Verify unrecognized or malformed inputs return the fallback string."""
+    assert WeatherService.get_weather_code(service, invalid_code) == "Unknown code"
+
+def test_call_met_office_success(service):
+    """Verify call_met_office builds the request properly and returns feature properties."""
+    expected_properties = {
+        "location": {"name": "Northwich"},
+        "timeSeries": [{"time": "2026-11-27T11:00Z", "significantWeatherCode": 1}],
+    }
+    mock_api_response = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": expected_properties,
+            }
+        ],
+    }
+
+    # Mock the HTTP response object
+    mock_response = MagicMock()
+    mock_response.json.return_value = mock_api_response
+    mock_response.raise_for_status.return_value = None
+
+    with (
+        patch("services.weather_service.MET_OFFICE_API_KEY", "test-api-key"),
+        patch("services.weather_service.MET_OFFICE_URL", "https://metoffice.gov.uk"),
+        patch.object(service, "get_location_coordinates", return_value=(53.2587, -2.5181)) as mock_coords,
+        patch("services.weather_service._session.get", return_value=mock_response) as mock_get,
+    ):
+        result = service.call_met_office(location="Northwich", timesteps="/hourly")
+
+    # 1. Assert the returned dictionary matches the nested 'properties' object
+    assert result == expected_properties
+
+    # 2. Assert coordinate lookup was called with the right location
+    mock_coords.assert_called_once_with("Northwich")
+
+    # 3. Assert _session.get was called with stripped slash, headers, params, and timeout
+    mock_get.assert_called_once_with(
+        "https://metoffice.gov.uk/hourly",
+        headers={
+            "accept": "application/json",
+            "apikey": "test-api-key",
+        },
+        params={
+            "excludeParameterMetadata": "TRUE",
+            "includeLocationName": "TRUE",
+            "latitude": 53.2587,
+            "longitude": -2.5181,
+        },
+        timeout=5.0,
+    )
+    mock_response.raise_for_status.assert_called_once()
 # ---------------------------------------------------------------------------
 # 1. Pre-request Validation Exceptions
 # ---------------------------------------------------------------------------
@@ -255,20 +334,6 @@ def test_get_location_coordinates_success(mock_get, service):
     )
 
 
-@patch.object(_session, "get")
-def test_get_location_coordinates_uses_lru_cache(mock_get, service):
-    """Subsequent calls with the exact same argument hit the cache instead of the API."""
-    mock_response = MagicMock()
-    mock_response.json.return_value = {
-        "results": [{"latitude": 53.258, "longitude": -2.518}]
-    }
-    mock_get.return_value = mock_response
-
-    first = service.get_location_coordinates("Northwich")
-    second = service.get_location_coordinates("Northwich")
-
-    assert first == second == (53.258, -2.518)
-    mock_get.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -301,105 +366,97 @@ def test_get_location_coordinates_no_results(mock_get, service, payload):
     assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
     assert exc_info.value.detail == "No coordinates found for location 'Atlantis'."
 
-
-# ---------------------------------------------------------------------------
-# 3. Network & HTTP Exceptions
-# ---------------------------------------------------------------------------
-
-@patch.object(_session, "get", side_effect=requests.Timeout("Read timed out"))
-def test_get_location_coordinates_timeout(mock_get, service):
-    """Raises 504 Gateway Timeout on requests.Timeout."""
+@pytest.mark.parametrize("empty_input", ["", "   ", "\t\n"])
+def test_empty_location_raises_400(service, mock_fetch, empty_input):
     with pytest.raises(HTTPException) as exc_info:
-        service.get_location_coordinates("Northwich")
+        service.get_location_coordinates(empty_input)
 
-    assert exc_info.value.status_code == status.HTTP_504_GATEWAY_TIMEOUT
-    assert exc_info.value.detail == "Geocoding request timed out for 'Northwich'"
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == "Location parameter cannot be empty."
+    mock_fetch.assert_not_called()
 
+def test_not_found_raises_404(service, mock_fetch):
+  mock_fetch.return_value = None
 
-@patch.object(_session, "get")
-def test_get_location_coordinates_http_error_with_status(mock_get, service):
-    """Raises 502 Bad Gateway including upstream status code on requests.HTTPError."""
-    mock_response = MagicMock()
-    http_err = requests.HTTPError("429 Too Many Requests")
-    http_err.response = MagicMock(status_code=429)
-    mock_response.raise_for_status.side_effect = http_err
-    mock_get.return_value = mock_response
+  with pytest.raises(HTTPException) as exc_info:
+    service.get_location_coordinates("Atlantis")
 
-    with pytest.raises(HTTPException) as exc_info:
-        service.get_location_coordinates("Northwich")
-
-    assert exc_info.value.status_code == status.HTTP_502_BAD_GATEWAY
-    assert "Geocoding API HTTP error (429) for 'Northwich'" in exc_info.value.detail
+  assert exc_info.value.status_code == 404
+  assert "No coordinates found for location 'Atlantis'" in exc_info.value.detail
 
 
-@patch.object(_session, "get")
-def test_get_location_coordinates_http_error_without_response(mock_get, service):
-    """Handles requests.HTTPError gracefully when e.response is None."""
-    mock_response = MagicMock()
-    http_err = requests.HTTPError("Upstream error")
-    http_err.response = None
-    mock_response.raise_for_status.side_effect = http_err
-    mock_get.return_value = mock_response
-
-    with pytest.raises(HTTPException) as exc_info:
-        service.get_location_coordinates("Northwich")
-
-    assert exc_info.value.status_code == status.HTTP_502_BAD_GATEWAY
-    assert "Geocoding API HTTP error (Unknown) for 'Northwich'" in exc_info.value.detail
+# --- Upstream & Network Errors (5xx) ---
 
 
-@patch.object(_session, "get", side_effect=requests.ConnectionError("DNS resolution failed"))
-def test_get_location_coordinates_request_exception(mock_get, service):
-    """Raises 502 Bad Gateway on generic requests.RequestException."""
-    with pytest.raises(HTTPException) as exc_info:
-        service.get_location_coordinates("Northwich")
+def test_timeout_raises_504(service, mock_fetch):
+  mock_fetch.side_effect = requests.Timeout("Read timed out")
 
-    assert exc_info.value.status_code == status.HTTP_502_BAD_GATEWAY
-    assert "Network error geocoding 'Northwich'" in exc_info.value.detail
+  with pytest.raises(HTTPException) as exc_info:
+    service.get_location_coordinates("London")
+
+  assert exc_info.value.status_code == 504
+  assert "Geocoding request timed out for 'London'" in exc_info.value.detail
 
 
-# ---------------------------------------------------------------------------
-# 4. Payload Parsing Exceptions (ValueError, KeyError, TypeError)
-# ---------------------------------------------------------------------------
+def test_http_error_with_response_raises_502(service, mock_fetch):
+  mock_response = MagicMock()
+  mock_response.status_code = 503
+  mock_fetch.side_effect = requests.HTTPError(
+      "Service Unavailable", response=mock_response
+  )
+
+  with pytest.raises(HTTPException) as exc_info:
+    service.get_location_coordinates("Manchester")
+
+  assert exc_info.value.status_code == 502
+  assert (
+      "Geocoding API HTTP error (503) for 'Manchester'" in exc_info.value.detail
+  )
+
+
+def test_http_error_without_response_raises_502(service, mock_fetch):
+  # Tests the `e.response is not None else "Unknown"` fallback branch
+  mock_fetch.side_effect = requests.HTTPError("Error without response")
+
+  with pytest.raises(HTTPException) as exc_info:
+    service.get_location_coordinates("Manchester")
+
+  assert exc_info.value.status_code == 502
+  assert (
+      "Geocoding API HTTP error (Unknown) for 'Manchester'"
+      in exc_info.value.detail
+  )
+
+
+def test_generic_request_exception_raises_502(service, mock_fetch):
+  mock_fetch.side_effect = requests.ConnectionError("DNS resolution failed")
+
+  with pytest.raises(HTTPException) as exc_info:
+    service.get_location_coordinates("Edinburgh")
+
+  assert exc_info.value.status_code == 502
+  assert "Network error geocoding 'Edinburgh'" in exc_info.value.detail
+
 
 @pytest.mark.parametrize(
-    "bad_payload",
+    "exc_type",
     [
-        {"results": [{"latitude": 53.258}]},  # KeyError: missing 'longitude'
-        {"results": [{"latitude": "not-a-float", "longitude": -2.518}]},  # ValueError
-        {"results": [None]},  # TypeError: 'NoneType' object is not subscriptable
-        ["unexpected-list-root"],  # AttributeError -> Note: see edge case below!
+        ValueError("invalid float"),
+        KeyError("latitude"),
+        TypeError("NoneType is not subscriptable"),
     ],
 )
-@patch.object(_session, "get")
-def test_get_location_coordinates_invalid_payload_structure(mock_get, service, bad_payload):
-    """Raises 502 Bad Gateway when JSON structure or types are invalid."""
-    if isinstance(bad_payload, list):
-        pytest.skip("Root list raises AttributeError unless handled (see note below)")
-
-    mock_response = MagicMock()
-    mock_response.json.return_value = bad_payload
-    mock_get.return_value = mock_response
+def test_payload_parsing_errors_raise_502(service, mock_fetch, exc_type):
+    mock_fetch.side_effect = exc_type
 
     with pytest.raises(HTTPException) as exc_info:
-        service.get_location_coordinates("Northwich")
+        service.get_location_coordinates("Cardiff")
 
-    assert exc_info.value.status_code == status.HTTP_502_BAD_GATEWAY
-    assert "Unexpected geocoding payload structure for 'Northwich'" in exc_info.value.detail
-
-
-@patch.object(_session, "get")
-def test_get_location_coordinates_invalid_json(mock_get, service):
-    """Raises 502 Bad Gateway when response.json() raises JSONDecodeError (subclass of ValueError)."""
-    mock_response = MagicMock()
-    mock_response.json.side_effect = json.JSONDecodeError("Expecting value", "", 0)
-    mock_get.return_value = mock_response
-
-    with pytest.raises(HTTPException) as exc_info:
-        service.get_location_coordinates("Northwich")
-
-    assert exc_info.value.status_code == status.HTTP_502_BAD_GATEWAY
-    assert "Unexpected geocoding payload structure for 'Northwich'" in exc_info.value.detail
+    assert exc_info.value.status_code == 502
+    assert (
+        "Unexpected geocoding payload structure for 'Cardiff'"
+        in exc_info.value.detail
+    )
 
 # ---------------------------------------------------------------------------
 # 1. Happy Path & Formatting

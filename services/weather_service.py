@@ -3,7 +3,7 @@ from functools import lru_cache
 import json
 import logging
 import os
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, Optional
 from fastapi import HTTPException, status
 import requests
 from requests.adapters import HTTPAdapter
@@ -24,6 +24,25 @@ _session = requests.Session()
 _retries = Retry(total=3, backoff_factor=0.3, status_forcelist=[429, 500, 502, 503, 504])
 _session.mount("https://", HTTPAdapter(max_retries=_retries))
 
+@lru_cache(maxsize=256)
+def _fetch_open_meteo_coords(cleaned_location: str) -> Optional[Tuple[float, float]]:
+  """Cached standalone helper to avoid memory leaks on `self`."""
+  params = {
+      "name": cleaned_location,
+      "count": 1,
+      "language": "en",
+      "format": "json",
+  }
+  response = _session.get(GEOCODE_URL, params=params, timeout=5.0)
+  response.raise_for_status()
+  data = response.json()
+
+  results = data.get("results")
+  if not results:
+    return None
+
+  top_match = results[0]
+  return float(top_match["latitude"]), float(top_match["longitude"])
 class WeatherService:
     WEATHER_CODES: Dict[str, str] = None
     def __init__(self):
@@ -47,47 +66,16 @@ class WeatherService:
     def get_weather_code(self, code: str) -> str:
         """Return human-readable weather description for a Met Office weather code."""
         return self.WEATHER_CODES.get(str(code), "Unknown code")
-
-
-    @lru_cache(maxsize=256)
     def get_location_coordinates(self, location: str) -> Tuple[float, float]:
-        """Fetch (latitude, longitude) for a location string using Open-Meteo."""
         cleaned = location.strip()
         if not cleaned:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Location parameter cannot be empty.",
             )
-            
-        params = {
-            "name": cleaned,
-            "count": 1,
-            "language": "en",
-            "format": "json",
-        }
 
         try:
-            response = _session.get(GEOCODE_URL, params=params, timeout=5.0)
-            response.raise_for_status()
-            data = response.json()
-
-            results = data.get("results")
-            
-            if not results:
-                msg = f"No coordinates found for location '{cleaned}'."
-                logger.info(msg)
-  
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=msg
-                )
-
-            top_match = results[0]
-            return float(top_match["latitude"]), float(top_match["longitude"])
-
-        except HTTPException:
-            # Re-raise HTTPExceptions untouched so they aren't caught below
-            raise
+            coords = _fetch_open_meteo_coords(cleaned)
         except requests.Timeout as e:
             msg = f"Geocoding request timed out for '{cleaned}'"
             logger.warning(msg)
@@ -96,7 +84,9 @@ class WeatherService:
                 detail=msg,
             ) from e
         except requests.HTTPError as e:
-            status_code = e.response.status_code if e.response is not None else "Unknown"
+            status_code = (
+                e.response.status_code if e.response is not None else "Unknown"
+            )
             msg = f"Geocoding API HTTP error ({status_code}) for '{cleaned}': {e}"
             logger.warning(msg)
             raise HTTPException(
@@ -118,6 +108,12 @@ class WeatherService:
                 detail=msg,
             ) from e
 
+        # Business logic sits cleanly outside the try/except block
+        if coords is None:
+            msg = f"No coordinates found for location '{cleaned}'."
+            logger.info(msg)
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg)
+        return coords   
 
     def call_met_office(self, location: str, timesteps: str) -> Dict[str, Any]:
         """Retrieve site-specific forecast properties from the Met Office DataHub API."""
